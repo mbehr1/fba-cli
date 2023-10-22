@@ -8,5 +8,10 @@
     "sourceMap":true,
     "esModuleInterop":true,
     "moduleResolution":"node",
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "jest.config.ts",
+    "src/**/*.spec.ts"
+  ]
 }
