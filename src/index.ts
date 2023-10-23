@@ -5,8 +5,8 @@
  */
 
 import { Command } from 'commander'
-import { version } from './util'
-import { cmdExec } from './cmdExec'
+import { version } from './util.js'
+import { cmdExec } from './cmdExec.js'
 
 try {
   const program = new Command()
