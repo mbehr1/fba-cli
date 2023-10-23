@@ -27,7 +27,7 @@ try {
   program.parse()
   const options = program.opts()
 
-  console.log('options:', options)
+  // console.log('options:', options)
 } catch (e) {
   console.error(`got error:${e}`)
 }
