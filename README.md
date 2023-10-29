@@ -60,9 +60,9 @@ Preconditions:
 Call from terminal/console
 
 ```bash
-# fba-cli -c <config_file> <list of fba files> <list of DLT files>
+# fba-cli exec -c <config_file> <list of fba files> <list of DLT files>
 # e.g.
-fba-cli -c config.json analysis.fba recorded.dlt recorded_p2.dlt > analysis_report.md
+fba-cli exec -c config.json analysis.fba recorded.dlt recorded_p2.dlt > analysis_report.md
 ```
 if you dont have adlt in path you can start it manually with the options
 ```sh
@@ -72,9 +72,9 @@ adlt remote -p 7777
 
 and then use `fba-cli`:
 ```bash
-# fba-cli -p host:port -c <config_file> <list of fba files> <list of DLT files>
+# fba-cli exec -p host:port -c <config_file> <list of fba files> <list of DLT files>
 # e.g.
-fba-cli -p 127.0.0.1:7777 -c config.json analysis.fba recorded.dlt recorded_p2.dlt > analysis_report.md
+fba-cli exec -p 127.0.0.1:7777 -c config.json analysis.fba recorded.dlt recorded_p2.dlt > analysis_report.md
 ```
 
 
