@@ -1,6 +1,5 @@
 /**
  * todos:
- * [] await processing filters until the dlt files are completely loaded
  * [] add lifecycle summary/table to report
  * [] add glob support for files passed as arguments
  * [] add option to include matching messages in a collaspable section
@@ -41,7 +40,24 @@ export const cmdExec = async (files: string[], options: any) => {
   const fbaFiles: string[] = []
   const nonFbaFiles: string[] = []
 
-  const pluginCfgs = JSON.stringify([]) // todo
+  // load json config?
+  let pluginCfgs: string = JSON.stringify([])
+  if (options.config) {
+    try {
+      const config = JSON5.parse(fs.readFileSync(options.config, 'utf-8'))
+      const plugins = config['dlt-logs.plugins']
+      if (plugins && Array.isArray(plugins)) {
+        pluginCfgs = JSON.stringify(config['dlt-logs.plugins'])
+      } else {
+        console.log(error(`No 'dlt-logs.plugins' config array in config file '${options.config}'!`))
+        return
+      }
+    } catch (e) {
+      console.log(error(`failed to load config file '${options.config}'! Got error:${e}`))
+      return
+    }
+  }
+
   const sortOrderByTime = 'sortOrderByTime' in options ? !!options.sortOrderByTime : true
 
   for (const file of files) {

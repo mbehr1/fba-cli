@@ -2,6 +2,7 @@ import { Node, Parent, Literal } from 'unist'
 import { visit, CONTINUE, SKIP, EXIT } from 'unist-util-visit'
 import { Root } from 'mdast'
 import { is } from 'unist-util-is'
+import { default as JSON5 } from 'json5'
 
 // our report type contains the info in a unist compliant AST
 // this can then be exported/transformed to markdown, html, junit, etc.
@@ -197,9 +198,20 @@ export function fbReportToMdast(report: FbaExecReport): Root {
           { type: 'break' },
           { type: 'text', value: `files: ${rc.data.files.join(', ')}` },
           { type: 'break' },
-          { type: 'text', value: `pluginCfgs: ${rc.data.pluginCfgs}` },
+          { type: 'html', value: `<details>` },
+          { type: 'html', value: `<summary>` },
+          { type: 'text', value: `pluginCfgs:` },
+          { type: 'html', value: `</summary><br>` },
         ],
       })
+      reportAsMd.children.push({
+        type: 'code',
+        lang: 'json',
+        value: JSON.stringify(JSON5.parse(rc.data.pluginCfgs), undefined, 2),
+      })
+      reportAsMd.children.push(
+        { type: 'html', value: `</details>` }, // or as 2nd paragraph?
+      )
       return CONTINUE // traverse children as well SKIP // dont traverse children
     }
     console.log(`skipping children of node.type=${node.type}`)
