@@ -2,7 +2,7 @@
  * todos:
  * [] add lifecycle summary/table to report
  * [] add glob support for files passed as arguments
- * [] add option to include matching messages in a collaspable section
+ * [] add option to include matching messages in a collapsable section
  * [] support markdown description from fba instructions and backgroundDescription
  * [] add support for reports (either as html embedded or as non interactive pngs)
  * [] support junit xml output format
