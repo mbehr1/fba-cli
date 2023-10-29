@@ -7,13 +7,15 @@
  * [] support junit xml output format
  */
 import fs from 'fs'
+import os from 'os'
+import crypto from 'crypto'
 
 import { default as JSON5 } from 'json5'
 import { default as jp } from 'jsonpath'
 
 import chalk from 'chalk'
 import { MultiBar } from 'cli-progress'
-import { AdltRemoteClient, FileBasedMsgsHandler, MsgType, char4U32LeToString } from './adltRemoteClient.js'
+import { AdltRemoteClient, FileBasedMsgsHandler, MsgType, char4U32LeToString, getAdltProcessAndPort } from './adltRemoteClient.js'
 import { FBBadge, FBCategory, FBEffect, Fishbone, getFBDataFromText, rqUriDecode } from './fbaFormat.js'
 import {
   FbCategoryResult,
@@ -30,6 +32,9 @@ import { inspect } from 'unist-util-inspect'
 import { filter } from 'unist-util-filter'
 import { assert as mdassert } from 'mdast-util-assert'
 import { toMarkdown } from 'mdast-util-to-markdown'
+import { ChildProcess } from 'child_process'
+import path from 'path'
+import { sleep } from './util.js'
 
 const error = chalk.bold.red
 const warning = chalk.bold.yellow
@@ -88,7 +93,7 @@ export const cmdExec = async (files: string[], options: any) => {
     const barMsgsLoadedOptions = {
       format: '                                       {duration}s | {total} msgs read',
     }
-    const barMsgsLoaded = multibar.create(100, 0, {}, barMsgsLoadedOptions)
+    const barMsgsLoaded = multibar.create(0, 0, {}, barMsgsLoadedOptions)
     const barFbas = multibar.create(fbaFiles.length, 0)
     const barQueries = multibar.create(0, 0, { file: 'queries' })
 
@@ -113,12 +118,43 @@ export const cmdExec = async (files: string[], options: any) => {
     // start adlt
     multibar.log(`Starting/connecting to adlt...\n`)
 
+    let adltWssPort: string | undefined
+    let adltProcess: ChildProcess | undefined
+    if (options.port) {
+      adltWssPort = options.port
+    } else {
+      // try to start adlt locally and set the port variable:
+      // todo for now output to tmpdir file (for later provide better solution)
+      const adltOut = path.join(os.tmpdir(), `fba-cli.adlt-out.${crypto.randomBytes(16).toString('hex')}.txt`)
+      multibar.log(`adlt console output file:'${adltOut}'\n`)
+      //console.error(`tmpDir=${adltOut}`)
+      await getAdltProcessAndPort('adlt', fs.createWriteStream(adltOut /*os.devNull*/)).then(
+        ({ hostAndPort, process }) => {
+          adltWssPort = hostAndPort
+          adltProcess = process
+        },
+        (e) => {
+          console.log(error(`Failed to start adlt! Got error:${e}`))
+        },
+      )
+    }
+
+    if (!adltWssPort) {
+      multibar.stop()
+      console.log(
+        error(
+          `No adlt remote host:port to use! Please ensure that adlt is running and provide the port via the -p option or have adlt in path and don't provide the -p option!`,
+        ),
+      )
+      return
+    }
+
     let report: FbaExecReport | undefined
 
     // todo add parameter!
     barAdlt.increment(1, { file: 'adlt connecting' })
     adltClient
-      .connectToWebSocket('ws://127.0.0.1:7777')
+      .connectToWebSocket(`ws://${adltWssPort}`)
       .then(async (adltVersion) => {
         //multibar.log(`Connected to adlt...\n`)
         barAdlt.increment(1, { file: 'adlt connected' })
@@ -145,11 +181,7 @@ export const cmdExec = async (files: string[], options: any) => {
             // so for now we do wait 2s until the msg.total don't change any more
             let lastTotal = barAdlt.getTotal()
             for (let i = 0; i < 1000; i++) {
-              await new Promise<void>((resolve) =>
-                setTimeout(() => {
-                  resolve()
-                }, 2000),
-              )
+              await sleep(2000)
               const curTotal = barAdlt.getTotal()
               if (lastTotal === curTotal) {
                 break
@@ -193,8 +225,15 @@ export const cmdExec = async (files: string[], options: any) => {
         console.log(error(`Failed to connect to adlt! Got error:${e}`))
       })
       .finally(() => {
-        adltClient.close()
         multibar.stop()
+        adltClient.close()
+        if (adltProcess) {
+          try {
+            adltProcess.kill()
+          } catch (e) {
+            console.log(error(`Failed to kill adlt process! Got error:${e}`))
+          }
+        }
         if (report) {
           //console.log(JSON.stringify(report, null, 2)) // use unist-util-inspect
           // console.log(`report is=${is(report, 'FbaExecReport')}`)

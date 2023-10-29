@@ -21,6 +21,7 @@ try {
     .command('exec')
     .description('execute FBA files with DLT-logs')
     .option('-c, --config <config>', 'json config file with object key dlt-logs.plugins')
+    .option('-p, --port <port>', 'adlt remote host:port e.g. 127.0.0.1:7777. Otherwise an adlt if in path will be started locally.')
     // .option('-j, --junit <output>', 'junit output filename ')
     .argument('<files...>', 'FBA and DLT files to be processed')
     .action(cmdExec)

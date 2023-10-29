@@ -1,5 +1,8 @@
 import { WebSocket } from 'ws'
+import { spawn, ChildProcess } from 'child_process'
 import * as remote_types from './remote_types.js'
+import { retryOperation } from './util.js'
+import { WriteStream } from 'fs'
 
 export type MsgType = remote_types.BinType
 export type FileBasedMsgsHandler = (msg: remote_types.BinType) => void
@@ -425,4 +428,86 @@ export class AdltRemoteClient {
     })
     return p
   }
+}
+
+/**
+ * get the host&port (e.g. 127.0.0.1:7777) & spawned process of adlt process.
+ * Starts adlt and tries to find an open port in range
+ * 6700-6789.
+ *
+ * Sets internal variables _adltProcess and _adltPort as well.
+ * @returns a promise for the host&port and the spawned process
+ */
+export function getAdltProcessAndPort(
+  adltCommand: string,
+  outStream: WriteStream,
+): Promise<{ hostAndPort: string; process: ChildProcess }> {
+  return new Promise<{ hostAndPort: string; process: ChildProcess }>((resolve, reject) => {
+    // start it
+    // currently it retries 89 times even if spawnAdltProcess rejects with ENOENT! todo
+
+    retryOperation((retries_left: number) => spawnAdltProcess(adltCommand, 6789 - retries_left, outStream), 10, 89)
+      .then(([childProc, port]) => {
+        resolve({ hostAndPort: `127.0.0.1:${port}`, process: childProc })
+      })
+      .catch((reason) => {
+        reject(reason)
+      })
+  })
+}
+
+/**
+ * spawn an adlt process at specified port.
+ *
+ * Checks whether the process could be started sucessfully and
+ * whether its listening on the port.
+ *
+ * Uses adltCommand to start the process and the params 'remote -p<port>'.
+ *
+ * It listens on stdout and stderr (and on 'close' and 'error' events) and forwards output to the outStream.
+ * This could be improved/changed to listen only until a successful start is detected.
+ *
+ * Rejects with 'ENOENT' or 'AddrInUse' or 'did close unexpectedly' in case of errors.
+ *
+ * @param port number of port to use for remote websocket
+ * @returns pair of ChildProcess started and the port number
+ */
+function spawnAdltProcess(adltCommand: string, port: number, outStream: WriteStream): Promise<[ChildProcess, number]> {
+  return new Promise<[ChildProcess, number]>((resolve, reject) => {
+    let finishedListening = [false] // todo could be a regular boolean
+    let childProc = spawn(adltCommand, ['remote', `-p=${port}`], { detached: false, windowsHide: true })
+    childProc.on('error', (err) => {
+      outStream.write(`spawnAdltProcess process got err='${err}'\n`)
+      if (!finishedListening[0] && err.message.includes('ENOENT')) {
+        finishedListening[0] = true
+        reject(`ENOENT - ${adltCommand} not found in path?. Detail error: ${err.message}`)
+      }
+    })
+    childProc.on('close', (code, signal) => {
+      outStream.write(`spawnAdltProcess(port=${port}) process got close code='${code}' signal='${signal}'\n`)
+      if (!finishedListening[0]) {
+        finishedListening[0] = true
+        reject('did close unexpectedly')
+      }
+    })
+    childProc?.stdout?.on('data', (data) => {
+      // todo or use 'spawn' event?
+      try {
+        if (!finishedListening[0] && `${data}`.includes('remote server listening on')) {
+          finishedListening[0] = true // todo stop searching for ... (might as well stop listening completely for stdout)
+          resolve([childProc, port])
+        }
+        outStream.write(data)
+      } catch (err) {
+        outStream.write(`spawnAdltProcess(port=${port}) process stdout got err='${err}, typeof data=${typeof data}'\n`)
+      }
+    })
+    childProc?.stderr?.on('data', (data) => {
+      outStream.write(`spawnAdltProcess(port=${port}) process got stderr='${data}'\n`)
+      if (!finishedListening[0] && `${data}`.includes('AddrInUse')) {
+        finishedListening[0] = true
+        reject('AddrInUse')
+      }
+    })
+  })
 }
