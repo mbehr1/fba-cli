@@ -3,6 +3,7 @@ import { visit, CONTINUE, SKIP, EXIT } from 'unist-util-visit'
 import { Root } from 'mdast'
 import { is } from 'unist-util-is'
 import { default as JSON5 } from 'json5'
+import { version } from './util.js'
 
 // our report type contains the info in a unist compliant AST
 // this can then be exported/transformed to markdown, html, junit, etc.
@@ -193,8 +194,8 @@ export function fbReportToMdast(report: FbaExecReport): Root {
       reportAsMd.children.push({
         type: 'paragraph',
         children: [
-          { type: 'text', value: `date: ${rc.data.date} ` },
-          { type: 'text', value: `adltVersion: ${rc.data.adltVersion}` },
+          { type: 'text', value: `date: ${rc.data.date}, ` },
+          { type: 'text', value: `adlt v${rc.data.adltVersion}, fba-cli v${version()} ` },
           { type: 'break' },
           { type: 'text', value: `files: ${rc.data.files.join(', ')}` },
           { type: 'break' },
