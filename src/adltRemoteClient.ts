@@ -224,7 +224,7 @@ export class AdltRemoteClient {
             }
           }
         } catch (e) {
-          console.error(`ws on message got error:${e}`)
+          console.error(`ws on message got error:${e}\n`)
         }
       })
       webSocket.on('upgrade', (response) => {
@@ -251,7 +251,6 @@ export class AdltRemoteClient {
           promiseWaits = false
           resolve(this.adltVersion || 'no version')
         }
-        //this.openAdltFiles()
       })
 
       webSocket.on('close', () => {
@@ -299,75 +298,83 @@ export class AdltRemoteClient {
   }
 
   private onBinaryMessage(data: ArrayBuffer) {
-    const bin_type = remote_types.readBinType(data)
-    switch (bin_type.tag) {
-      case 'DltMsgs':
-      case 'StreamInfo':
-        {
-          let streamId = bin_type.tag === 'DltMsgs' ? bin_type.value[0] : bin_type.value.stream_id
-          let streamData = this.streamMsgs.get(streamId)
-          if (streamData && !Array.isArray(streamData)) {
-            this.processBinStreamMsgs(bin_type, streamData)
-          } else {
-            // we store the pure data for later processing:
-            if (!streamData) {
-              streamData = [bin_type]
-              this.streamMsgs.set(streamId, streamData)
+    try {
+      const bin_type = remote_types.readBinType(data)
+      switch (bin_type.tag) {
+        case 'DltMsgs':
+        case 'StreamInfo':
+          {
+            let streamId = bin_type.tag === 'DltMsgs' ? bin_type.value[0] : bin_type.value.stream_id
+            let streamData = this.streamMsgs.get(streamId)
+            if (streamData && !Array.isArray(streamData)) {
+              this.processBinStreamMsgs(bin_type, streamData)
             } else {
-              streamData.push(bin_type)
-              if (streamData.length > 3) {
-                console.warn(
-                  `adlt.on(binary): appended ${bin_type.tag} for yet unknown stream=${streamId}, streamData.length=${streamData.length}`,
-                )
+              // we store the pure data for later processing:
+              if (!streamData) {
+                streamData = [bin_type]
+                this.streamMsgs.set(streamId, streamData)
+              } else {
+                streamData.push(bin_type)
+                if (streamData.length > 3) {
+                  console.warn(
+                    `adlt.on(binary): appended ${bin_type.tag} for yet unknown stream=${streamId}, streamData.length=${streamData.length}`,
+                  )
+                }
               }
             }
           }
-        }
-        break
-      case 'FileInfo':
-      case 'Lifecycles':
-      case 'EacInfo':
-      case 'PluginState':
-        {
-          this.fileBasedMsgsHandler(bin_type)
-        }
-        break
-      default:
-        console.warn(`ws on binary message ignored:${(bin_type as unknown as any).tag}`)
-        break
+          break
+        case 'FileInfo':
+        case 'Lifecycles':
+        case 'EacInfo':
+        case 'PluginState':
+          {
+            this.fileBasedMsgsHandler(bin_type)
+          }
+          break
+        default:
+          console.warn(`ws on binary message ignored:${(bin_type as unknown as any).tag}`)
+          break
+      }
+    } catch (e) {
+      console.error(`ws on binary message got error:${e}\n`)
     }
   }
 
   processBinStreamMsgs(bin_type: remote_types.BinType, streamData: StreamMsgData) {
-    switch (bin_type.tag) {
-      case 'DltMsgs':
-        const [streamId, msgs] = bin_type.value
-        if (msgs.length === 0) {
-          // indicates end of query:
-          if (streamData.sink.onDone) {
-            streamData.sink.onDone()
-          }
-          this.streamMsgs.delete(streamId)
-          //console.error(`adlt.processBinDltMsgs deleted stream #${streamId}\n\n`)
-        } else {
-          for (let i = 0; i < msgs.length; ++i) {
-            let binMsg = msgs[i]
+    try {
+      switch (bin_type.tag) {
+        case 'DltMsgs':
+          const [streamId, msgs] = bin_type.value
+          if (msgs.length === 0) {
+            // indicates end of query:
+            if (streamData.sink.onDone) {
+              streamData.sink.onDone()
+            }
+            this.streamMsgs.delete(streamId)
+            //console.error(`adlt.processBinDltMsgs deleted stream #${streamId}\n\n`)
+          } else {
+            for (let i = 0; i < msgs.length; ++i) {
+              let binMsg = msgs[i]
 
-            let msg = new AdltMsg(binMsg /*, this.lifecycleInfoForPersistentId(binMsg.lifecycle_id)*/)
-            streamData.msgs.push(msg)
+              let msg = new AdltMsg(binMsg /*, this.lifecycleInfoForPersistentId(binMsg.lifecycle_id)*/)
+              streamData.msgs.push(msg)
+            }
+            if (streamData.sink.onNewMessages) {
+              streamData.sink.onNewMessages(msgs.length)
+            }
           }
-          if (streamData.sink.onNewMessages) {
-            streamData.sink.onNewMessages(msgs.length)
+          break
+        case 'StreamInfo':
+          const si = bin_type.value
+          // console.log(`adlt.processBinStreamMsgs: StreamInfo stream=${si.stream_id}, stream msgs=${si.nr_stream_msgs} processed=${si.nr_file_msgs_processed} total=${si.nr_file_msgs_total}`);
+          if (streamData.sink.onStreamInfo) {
+            streamData.sink.onStreamInfo(si.nr_stream_msgs, si.nr_file_msgs_processed, si.nr_file_msgs_total)
           }
-        }
-        break
-      case 'StreamInfo':
-        const si = bin_type.value
-        // console.log(`adlt.processBinStreamMsgs: StreamInfo stream=${si.stream_id}, stream msgs=${si.nr_stream_msgs} processed=${si.nr_file_msgs_processed} total=${si.nr_file_msgs_total}`);
-        if (streamData.sink.onStreamInfo) {
-          streamData.sink.onStreamInfo(si.nr_stream_msgs, si.nr_file_msgs_processed, si.nr_file_msgs_total)
-        }
-        break
+          break
+      }
+    } catch (e) {
+      console.error(`adlt.processBinStreamMsgs got error:${e}\n`)
     }
   }
 

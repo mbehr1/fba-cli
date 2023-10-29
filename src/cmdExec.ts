@@ -1,8 +1,11 @@
 /**
  * todos:
  * [] await processing filters until the dlt files are completely loaded
+ * [] add lifecycle summary/table to report
  * [] add glob support for files passed as arguments
  * [] add option to include matching messages in a collaspable section
+ * [] support markdown description from fba instructions and backgroundDescription
+ * [] support junit xml output format
  */
 import fs from 'fs'
 
@@ -67,33 +70,36 @@ export const cmdExec = async (files: string[], options: any) => {
     })
     const barAdlt = multibar.create(5, 0, { file: 'starting adlt' })
     const barMsgsLoadedOptions = {
-      format: '                                      {duration}s | {total} msgs read',
+      format: '                                       {duration}s | {total} msgs read',
     }
     const barMsgsLoaded = multibar.create(100, 0, {}, barMsgsLoadedOptions)
     const barFbas = multibar.create(fbaFiles.length, 0)
     const barQueries = multibar.create(0, 0, { file: 'queries' })
 
     const fileBasedMsgsHandler: FileBasedMsgsHandler = (msg: MsgType) => {
-      switch (msg.tag) {
-        case 'FileInfo':
-          const fi = msg.value
-          barMsgsLoaded.setTotal(fi.nr_msgs)
-          break
-        case 'Lifecycles':
-          const li = msg.value
-          multibar.log(`Got ${li.length} lifecycles ${char4U32LeToString(li[0]?.ecu || 0)}\n`)
-          break
+      try {
+        switch (msg.tag) {
+          case 'FileInfo':
+            const fi = msg.value
+            barMsgsLoaded.setTotal(fi.nr_msgs)
+            break
+          case 'Lifecycles':
+            const li = msg.value
+            //multibar.log(`Got ${li.length} lifecycles ${char4U32LeToString(li[0]?.ecu || 0)}\n`)
+            break
+        }
+      } catch (e) {
+        console.warn(`fileBasedMsgsHandler got error:${e}\n`)
       }
     }
 
     const adltClient = new AdltRemoteClient(fileBasedMsgsHandler)
     // start adlt
-    multibar.log(`Starting adlt...\n`)
+    multibar.log(`Starting/connecting to adlt...\n`)
 
     let report: FbaExecReport | undefined
 
     // todo add parameter!
-    //multibar.log(`Connecting to adlt...\n`)
     barAdlt.increment(1, { file: 'adlt connecting' })
     adltClient
       .connectToWebSocket('ws://127.0.0.1:7777')
@@ -118,7 +124,24 @@ export const cmdExec = async (files: string[], options: any) => {
             // multibar.log(`Opened files...\n`)
             barAdlt.increment(1, { file: 'adlt files opened' })
             // load dlt files
-            //multibar.log(`Processing DLT files...\n`)
+            multibar.log(`Processing DLT files...\n`)
+            // todo currently adlt doesn't indicate once it finished loading the files.
+            // so for now we do wait 2s until the msg.total don't change any more
+            let lastTotal = barAdlt.getTotal()
+            for (let i = 0; i < 1000; i++) {
+              await new Promise<void>((resolve) =>
+                setTimeout(() => {
+                  resolve()
+                }, 2000),
+              )
+              const curTotal = barAdlt.getTotal()
+              if (lastTotal === curTotal) {
+                break
+              } else {
+                lastTotal = curTotal
+              }
+            }
+            multibar.log(`Processing fba files...\n`)
             // exec the fba files
             for (const fbaFile of fbaFiles) {
               const fbaResult: FbaResult = {

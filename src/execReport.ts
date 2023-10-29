@@ -9,6 +9,10 @@ import { is } from 'unist-util-is'
 export interface FbaExecReport extends Parent {
   type: 'FbaExecReport'
   data: {
+    date: string
+    adltVersion: string
+    files: string[]
+    pluginCfgs: string
     [key: string]: any
   }
   children: FbaResult[]
@@ -76,7 +80,7 @@ export function fbReportToMdast(report: FbaExecReport): Root {
       reportAsMd.children.push({
         type: 'heading',
         depth: 5,
-        children: [{ type: 'text', value: `root cause: '${rc.data.name}': ${JSON.stringify(rc.value)}` }],
+        children: [{ type: 'text', value: `root cause: '${rc.data.name}'` }],
       })
       const badgeValue = rc.value.badge
       if (!hideBadgeValue(badgeValue)) {
@@ -183,6 +187,18 @@ export function fbReportToMdast(report: FbaExecReport): Root {
         type: 'heading',
         depth: 1,
         children: [{ type: 'text', value: `fba-cli execution report` }], // rc.children,
+      })
+      // output some data:
+      reportAsMd.children.push({
+        type: 'paragraph',
+        children: [
+          { type: 'text', value: `date: ${rc.data.date} ` },
+          { type: 'text', value: `adltVersion: ${rc.data.adltVersion}` },
+          { type: 'break' },
+          { type: 'text', value: `files: ${rc.data.files.join(', ')}` },
+          { type: 'break' },
+          { type: 'text', value: `pluginCfgs: ${rc.data.pluginCfgs}` },
+        ],
       })
       return CONTINUE // traverse children as well SKIP // dont traverse children
     }
