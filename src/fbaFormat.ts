@@ -131,7 +131,6 @@ export const rqUriEncode = (rq: RQ): string => {
 }
 
 const uid = new ShortUniqueId.default({ length: 8 })
-console.error(`uid.rnd()=${uid.rnd()}`)
 
 export function getFBDataFromText(text: string): Fishbone {
   // here we do return the data that we pass as data=... to the Fishbone
@@ -171,7 +170,7 @@ export function getFBDataFromText(text: string): Fishbone {
   if (typeof yamlObj !== 'object') {
     throw new Error(`content is no 'object' but '${typeof yamlObj}'`)
   }
-  console.log(`getFBDataFromText(len=${text.length}) type=${yamlObj.type}, version=${yamlObj.version}, title=${yamlObj.title}`)
+  // console.log(`getFBDataFromText(len=${text.length}) type=${yamlObj.type}, version=${yamlObj.version}, title=${yamlObj.title}`)
 
   // convert data from prev. versions?
   const convertv01Effects = (effects: any) => {
@@ -256,7 +255,7 @@ export function getFBDataFromText(text: string): Fishbone {
         return null // this root cause will be deleted!
       }
     })
-    console.log(`FBAEditorProvider.convertv02TextFields converting from v02 to v03 ... done`)
+    //console.log(`FBAEditorProvider.convertv02TextFields converting from v02 to v03 ... done`)
     yamlObj.version = '0.3'
   }
 
@@ -265,7 +264,7 @@ export function getFBDataFromText(text: string): Fishbone {
     // we have to modify directly the yamlObj passed: and not return a new obj.
     console.assert(yamlObj.version === '0.3', `logical error! unexpected version=${yamlObj.version}`)
     if (yamlObj.version === '0.3') {
-      console.warn(`FBAEditorProvider.convertv03RestParameters converting from v03 to v04 ...`)
+      //console.warn(`FBAEditorProvider.convertv03RestParameters converting from v03 to v04 ...`)
       const updateSource = (obj: { source: string | { url: string } }) => {
         // old format was as well: source.url=...
         const srcString: string = typeof obj.source === 'string' ? obj.source : typeof obj.source?.url === 'string' ? obj.source.url : ''
@@ -284,13 +283,13 @@ export function getFBDataFromText(text: string): Fishbone {
               commandsNew.push(`${command}=${encodeURIComponent(commandParams)}`)
             }
             const newRequest = `${srcString.slice(0, indexOfQ)}?${commandsNew.join('&')}`
-            console.warn(` converted (uri encoded)\n  ${JSON.stringify(obj)} to .source=\n  '${newRequest}'`)
+            //console.warn(` converted (uri encoded)\n  ${JSON.stringify(obj)} to .source=\n  '${newRequest}'`)
             obj.source = newRequest
           }
         } else {
           if (typeof obj.source !== 'string') {
             // to get rid of the "source.url ones..."
-            console.warn(` converted (.source.url to .source)\n  ${JSON.stringify(obj)} to .source=\n  '${srcString}'`)
+            //console.warn(` converted (.source.url to .source)\n  ${JSON.stringify(obj)} to .source=\n  '${srcString}'`)
             obj.source = srcString
           }
         }
@@ -356,7 +355,7 @@ export function getFBDataFromText(text: string): Fishbone {
           }
         })
       }
-      console.log(`FBAEditorProvider.convertv03RestParameters converting from v03 to v04 ... done`)
+      //console.log(`FBAEditorProvider.convertv03RestParameters converting from v03 to v04 ... done`)
       yamlObj.version = '0.4'
     }
   }
@@ -364,7 +363,7 @@ export function getFBDataFromText(text: string): Fishbone {
   // convert data from prev v0.4: attributes change values to query only for current doc
   const convertv04Attributes = (yamlObj: { fishbone: any[]; attributes: any | undefined; version: string | undefined }) => {
     if (yamlObj.version === '0.4') {
-      console.warn(`FBAEditorProvider.convertv04Attributes converting from v04 to v05 ...`)
+      //console.warn(`FBAEditorProvider.convertv04Attributes converting from v04 to v05 ...`)
       if (Array.isArray(yamlObj.attributes) && yamlObj.attributes.length > 0) {
         yamlObj.attributes.forEach((attr) => {
           const attrId = Object.keys(attr)[0]
@@ -397,7 +396,7 @@ export function getFBDataFromText(text: string): Fishbone {
           }
         })
       }
-      console.warn(`FBAEditorProvider.convertv04Attributes converting from v04 to v05 ... done`)
+      //console.warn(`FBAEditorProvider.convertv04Attributes converting from v04 to v05 ... done`)
       yamlObj.version = '0.5'
     }
   }
@@ -441,7 +440,7 @@ export function getFBDataFromText(text: string): Fishbone {
   }
 
   if (yamlObj?.version === '0.6') {
-    console.warn(`FBAEditorProvider converting from v0.6 to v0.7 ...`)
+    //console.warn(`FBAEditorProvider converting from v0.6 to v0.7 ...`)
     try {
       iterateAllFBElements(yamlObj.fishbone, [], (type, elem, parent) => {
         if (typeof elem !== 'object') {
@@ -468,7 +467,7 @@ export function getFBDataFromText(text: string): Fishbone {
         textDeflated: zlib.deflateSync(text).toString('base64'),
       })
       yamlObj.version = '0.7'
-      console.log(`FBAEditorProvider converting from v0.6 to v0.7 done`)
+      //console.log(`FBAEditorProvider converting from v0.6 to v0.7 done`)
     } catch (e) {
       console.error(`FBAEditorProvider converting from v0.6 to v0.7 got error: '${e}'`)
     }

@@ -1,6 +1,8 @@
 /**
  * todos:
+ * [] await processing filters until the dlt files are completely loaded
  * [] add glob support for files passed as arguments
+ * [] add option to include matching messages in a collaspable section
  */
 import fs from 'fs'
 
@@ -10,13 +12,28 @@ import { default as jp } from 'jsonpath'
 import chalk from 'chalk'
 import { MultiBar } from 'cli-progress'
 import { AdltRemoteClient, FileBasedMsgsHandler, MsgType, char4U32LeToString } from './adltRemoteClient.js'
-import { FBBadge, getFBDataFromText, iterateAllFBElements, rqUriDecode } from './fbaFormat.js'
+import { FBBadge, FBCategory, FBEffect, Fishbone, getFBDataFromText, rqUriDecode } from './fbaFormat.js'
+import {
+  FbCategoryResult,
+  FbEffectResult,
+  FbRootCauseResult,
+  FbaExecReport,
+  FbaResult,
+  fbReportToMdast,
+  hideBadge2Value,
+  hideBadgeValue,
+} from './execReport.js'
+import { Node } from 'unist'
+import { inspect } from 'unist-util-inspect'
+import { filter } from 'unist-util-filter'
+import { assert as mdassert } from 'mdast-util-assert'
+import { toMarkdown } from 'mdast-util-to-markdown'
 
 const error = chalk.bold.red
 const warning = chalk.bold.yellow
 
 export const cmdExec = async (files: string[], options: any) => {
-  console.log('cmdExec', files, options)
+  // console.log('cmdExec', files, options)
 
   const fbaFiles: string[] = []
   const nonFbaFiles: string[] = []
@@ -33,8 +50,8 @@ export const cmdExec = async (files: string[], options: any) => {
       nonFbaFiles.push(file)
     }
   }
-  console.log('exec: fba files:', fbaFiles)
-  console.log('exec: non fba files:', nonFbaFiles)
+  // console.log('exec: fba files:', fbaFiles)
+  // console.log('exec: non fba files:', nonFbaFiles)
 
   if (fbaFiles.length === 0) {
     console.log(warning('no fba files found!'))
@@ -42,7 +59,7 @@ export const cmdExec = async (files: string[], options: any) => {
       console.log(warning(`Dont' know what to do with the other ${nonFbaFiles.length} files!`))
     }
   } else {
-    console.log('exec: processing...')
+    //console.log('exec: processing...')
     const multibar = new MultiBar({
       clearOnComplete: false,
       hideCursor: true,
@@ -54,6 +71,7 @@ export const cmdExec = async (files: string[], options: any) => {
     }
     const barMsgsLoaded = multibar.create(100, 0, {}, barMsgsLoadedOptions)
     const barFbas = multibar.create(fbaFiles.length, 0)
+    const barQueries = multibar.create(0, 0, { file: 'queries' })
 
     const fileBasedMsgsHandler: FileBasedMsgsHandler = (msg: MsgType) => {
       switch (msg.tag) {
@@ -71,7 +89,8 @@ export const cmdExec = async (files: string[], options: any) => {
     const adltClient = new AdltRemoteClient(fileBasedMsgsHandler)
     // start adlt
     multibar.log(`Starting adlt...\n`)
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    let report: FbaExecReport | undefined
 
     // todo add parameter!
     //multibar.log(`Connecting to adlt...\n`)
@@ -85,33 +104,44 @@ export const cmdExec = async (files: string[], options: any) => {
         await adltClient
           .sendAndRecvAdltMsg(`open {"sort":${sortOrderByTime},"files":${JSON.stringify(nonFbaFiles)},"plugins":${pluginCfgs}}`)
           .then(async (response) => {
+            report = {
+              type: 'FbaExecReport',
+              data: {
+                date: new Date().toISOString(),
+                adltVersion,
+                files: nonFbaFiles,
+                pluginCfgs,
+              },
+              children: [],
+            }
             // todo check response
             // multibar.log(`Opened files...\n`)
             barAdlt.increment(1, { file: 'adlt files opened' })
-            // console.log('response:', response)
-            await adltClient.getMatchingMessages([{ enabled: true, ecu: 'E002', type: 0 }], 1000).then(
-              (msgs) => {
-                multibar.log(`Got ${msgs.length} msgs\n`)
-              },
-              (e) => {
-                multibar.log(`Got ${e}  on getMatchingMsgs\n`)
-              },
-            )
-            // wait 5s
-            //await new Promise((resolve) => setTimeout(resolve, 5000))
-            barAdlt.increment(1, { file: 'adlt started' })
             // load dlt files
             //multibar.log(`Processing DLT files...\n`)
             // exec the fba files
             for (const fbaFile of fbaFiles) {
+              const fbaResult: FbaResult = {
+                type: 'FbaResult',
+                data: {
+                  fbaFileName: fbaFile,
+                  errors: [],
+                },
+                children: [],
+              }
+              report.children.push(fbaResult)
               barFbas.increment(1, { file: fbaFile })
               // console.log(`executing fba file:'${fbaFile}'`)
-              await processFbaFile(fbaFile, adltClient).then(
-                (nrOfFbas) => {
+              await processFbaFile(fbaFile, fbaResult, adltClient).then(
+                async function (promises): Promise<void> {
                   //barFbas.increment(nrOfFbas)
+                  barQueries.setTotal(barQueries.getTotal() + promises.length)
+                  await Promise.allSettled(promises).then((results) => {
+                    barQueries.increment(results.length)
+                  })
                 },
-                (e) => {
-                  console.log(error(`Failed to process fba file:'${fbaFile}'! Got error:${e}`))
+                (e): void => {
+                  multibar.log(error(`Failed to process fba file:'${fbaFile}'! Got error:${e}`))
                 },
               )
             }
@@ -126,21 +156,57 @@ export const cmdExec = async (files: string[], options: any) => {
       .finally(() => {
         adltClient.close()
         multibar.stop()
-        console.log(warning('finally...'))
+        if (report) {
+          //console.log(JSON.stringify(report, null, 2)) // use unist-util-inspect
+          // console.log(`report is=${is(report, 'FbaExecReport')}`)
+          // filter all value.badge = Number(0)
+          report = filter(report, (node: Node) => {
+            return (
+              node.type !== 'FbRootCauseResult' ||
+              !hideBadgeValue((node as FbRootCauseResult).value.badge) ||
+              !hideBadge2Value((node as FbRootCauseResult).value.badge2)
+            )
+          })
+          if (report) {
+            // convert by default to md/markdown
+            const reportAsMd = fbReportToMdast(report)
+            try {
+              mdassert(reportAsMd)
+              console.log(toMarkdown(reportAsMd))
+            } catch (e) {
+              console.log(inspect(reportAsMd))
+              console.warn(`reportAsMd got error:${e}`)
+            }
+          }
+        } else {
+          console.log(warning('failed to generate a report!'))
+        }
       })
   }
 }
 
-const processBadge = async (badge: FBBadge, adltClient: AdltRemoteClient) => {
+function objectMember<T>(obj: any, key: string): { value: T } {
+  return {
+    get value(): T {
+      return obj[key]
+    },
+    set value(t: T) {
+      obj[key] = t
+    },
+  }
+}
+
+const processBadge = async (badge: FBBadge, adltClient: AdltRemoteClient, rcResult: { value: string | number | undefined }) => {
   try {
-    console.log(` badge=${JSON.stringify(badge)}`)
     if (badge.conv && badge.source.startsWith('ext:mbehr1.dlt-logs/')) {
       const rq = rqUriDecode(badge.source)
       // console.log(`rqCmd.path=${rqCmd.path}`)
       if (rq.path.endsWith('/filters?')) {
-        console.log(`rq.commands=${JSON.stringify(rq.commands)}`)
+        //console.log(`rq.commands=${JSON.stringify(rq.commands)}`)
         for (const cmd of rq.commands) {
+          rcResult.value = undefined
           if (cmd.cmd === 'query') {
+            // todo what if multiple queries?
             const conv = badge.conv
             await adltClient.getMatchingMessages(JSON5.parse(cmd.param), 1000).then((msgs) => {
               try {
@@ -201,52 +267,133 @@ const processBadge = async (badge: FBBadge, adltClient: AdltRemoteClient) => {
                   default:
                     break
                 }
-                if (convResult !== undefined) {
-                  console.log(`badge.conv='${convResult}'`)
+                if (rcResult.value !== undefined) {
+                  rcResult.value = rcResult.value.toString() + (convResult !== undefined ? convResult.toString() : '<undefined>')
+                } else {
+                  rcResult.value = convResult
                 }
               } catch (e) {
-                console.warn(`processBadg.msgs got error:${e}`)
+                console.warn(`processBadge.msgs got error:${e}`)
+                rcResult.value += `processBadge.msgs got error:${e}`
               }
             })
           } else {
             console.log(`rq.cmd=${cmd} ignored!`)
+            rcResult.value = '<none>'
           }
         }
+      } else {
+        rcResult.value = '<no /filters>'
       }
+    } else {
+      // silently skip/ignore rcResult.value = '<no ext:mbehr1.dlt-logs/>'
+      rcResult.value = undefined
     }
   } catch (e) {
     console.warn(`processBadge got error:${e}`)
+    rcResult.value = `processBadge got error:${e}`
   }
 }
 
-const processFbaFile = async (filePath: string, adltClient: AdltRemoteClient) => {
+function iterateFbEffects(fishbone: FBEffect[], fbaResult: FbaResult, adltClient: AdltRemoteClient) {
+  const promises: Promise<void>[] = []
+  for (const effect of fishbone) {
+    const effectResult: FbEffectResult = {
+      type: 'FbEffectResult',
+      data: { ...effect },
+      children: [],
+    }
+    delete effectResult.data.categories
+    delete effectResult.data.fbUid
+
+    if (effect?.categories?.length) {
+      for (const category of effect.categories) {
+        const categoryResult: FbCategoryResult = {
+          type: 'FbCategoryResult',
+          data: { ...category },
+          children: [],
+        }
+        delete categoryResult.data.rootCauses
+        delete categoryResult.data.fbUid
+
+        if (category?.rootCauses?.length) {
+          for (const rc of category.rootCauses) {
+            //console.log(`fbType=${fbType}, fbElement.type=${fbElement.type},fbElement.element=${fbElement.element} parent=${parent.name}`)
+            if (rc.props?.badge || rc.props?.badge2) {
+              const rcResult: FbRootCauseResult = {
+                type: 'FbRootCauseResult',
+                data: {
+                  ...rc,
+                  name: rc.props.label,
+                  backgroundDescription: rc.props.backgroundDescription,
+                  instructions: rc.props.instructions,
+                },
+                value: {
+                  badge: rc.props.badge ? '<pending>' : undefined,
+                  badge2: rc.props.badge2 ? '<pending>' : undefined,
+                },
+              }
+              delete rcResult.data.type
+              delete rcResult.data.element
+              delete rcResult.data.fbUid
+              delete rcResult.data.data
+              delete rcResult.data.props
+
+              categoryResult.children.push(rcResult)
+              if (rc.props.badge) {
+                promises.push(processBadge(rc.props.badge, adltClient, objectMember(rcResult.value, 'badge')))
+              }
+              if (rc.props.badge2) {
+                promises.push(processBadge(rc.props.badge2, adltClient, objectMember(rcResult.value, 'badge2')))
+              }
+            }
+            if (rc.type === 'nested' && Array.isArray(rc.data)) {
+              const nestedResult: FbaResult = {
+                type: 'FbaResult',
+                data: {
+                  fbaTitle: rc.title,
+                  errors: [],
+                },
+                children: [],
+              }
+              promises.push(...iterateFbEffects(rc.data, nestedResult, adltClient))
+              if (nestedResult.children.length) {
+                categoryResult.children.push(nestedResult)
+              }
+            }
+          }
+        }
+        if (categoryResult.children.length) {
+          effectResult.children.push(categoryResult)
+        }
+      }
+    }
+    if (effectResult.children.length) {
+      fbaResult.children.push(effectResult)
+    }
+  }
+  return promises
+}
+
+const processFbaFile = async (filePath: string, fbaResult: FbaResult, adltClient: AdltRemoteClient): Promise<Promise<void>[]> => {
   // try to open the file:
-  return new Promise<number>((resolve, reject) => {
+  return new Promise<Promise<void>[]>((resolve, reject) => {
     fs.readFile(filePath, 'utf-8', (err, fbaFileContent) => {
       if (err) {
-        console.log(error(`Failed to read fba file:'${filePath}'! Got error:${err}`))
+        // console.log(error(`Failed to read fba file:'${filePath}'! Got error:${err}`))
+        fbaResult.data.errors.push(`Failed to read fba file due to: ${err}`)
         reject(err)
         return
       }
       try {
         const fba = getFBDataFromText(fbaFileContent)
-        console.log(`fba.title=${fba.title}`)
-        iterateAllFBElements(fba.fishbone, [], async (fbType, fbElement, parent) => {
-          if (fbType === 'rc' && typeof fbElement === 'object' && fbElement.type === 'react' && fbElement.element === 'FBACheckbox') {
-            //console.log(`fbType=${fbType}, fbElement.type=${fbElement.type},fbElement.element=${fbElement.element} parent=${parent.name}`)
-            if (fbElement.props?.badge) {
-              processBadge(fbElement.props.badge, adltClient)
-            }
-            if (fbElement.props?.badge2) {
-              processBadge(fbElement.props.badge2, adltClient)
-            }
-          }
-        })
-        resolve(1)
+        fbaResult.data.fbaTitle = fba.title
+        const promises = iterateFbEffects(fba.fishbone, fbaResult, adltClient)
+        resolve(promises)
       } catch (e) {
+        fbaResult.data.errors.push(`Processing fba got error: ${e}`)
         reject(e)
       }
     })
   })
-  // await new Promise((resolve) => setTimeout(resolve, 2000))
 }
