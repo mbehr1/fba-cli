@@ -184,7 +184,8 @@ export const cmdExec = async (files: string[], options: any) => {
             for (let i = 0; i < 1000; i++) {
               await sleep(2000)
               const curTotal = barAdlt.getTotal()
-              if (lastTotal === curTotal) {
+              if (lastTotal === curTotal && !(lastTotal === 0 && i < 5)) {
+                // wait for initial msgs a bit longer
                 break
               } else {
                 lastTotal = curTotal
