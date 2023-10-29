@@ -1,5 +1,5 @@
 export function version(): string {
-  return '1.0.2' // todo how to get from package.json?
+  return '1.0.3' // todo how to get from package.json?
 }
 
 // taken from https://stackoverflow.com/questions/38213668/promise-retry-design-patterns
