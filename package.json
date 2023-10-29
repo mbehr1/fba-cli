@@ -1,7 +1,7 @@
 {
   "name": "fba-cli",
   "version": "1.0.0",
-  "description": "",
+  "description": "A CLI (command line interface) to execute FBA (fishbone analysis) files with DLT-logs/adlt.",
   "repository": "https://github.com/mbehr1/fba-cli",
   "homepage": "https://github.com/mbehr1/fba-cli#readme",
   "main": "dist/index.js",
