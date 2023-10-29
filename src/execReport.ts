@@ -90,9 +90,16 @@ export function fbReportToMdast(report: FbaExecReport): Root {
           type: 'paragraph',
           children: [
             { type: 'text', value: '🔴: ' }, // or only :warning:?
-            { type: 'html', value: '<mark>' },
-            { type: 'emphasis', children: [{ type: 'text', value: rc.value.badge?.toString() || '' }] },
-            { type: 'html', value: '</mark>' },
+            { type: 'html', value: '<mark> ' },
+            {
+              type: 'emphasis',
+              children: [
+                { type: 'text', value: "' " },
+                { type: 'text', value: rc.value.badge?.toString() || '' },
+                { type: 'text', value: " '" },
+              ],
+            },
+            { type: 'html', value: ' </mark>' },
           ],
         })
       }
