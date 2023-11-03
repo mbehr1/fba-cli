@@ -40,7 +40,7 @@ jobs:
         run: npm clean-install
       - name: Verify the integrity of provenance attestations and registry signatures for installed dependencies
         run: npm audit signatures
-      - name: test release
+      - name: Test release on PRs
         if: ${{ github.ref != 'refs/heads/main' && github.event.pull_request }}
         run: npx semantic-release -d
       - name: Release
@@ -48,4 +48,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: echo npx semantic-release
+        run: npx semantic-release -d
