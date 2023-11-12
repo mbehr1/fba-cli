@@ -13,9 +13,9 @@
     "fba-cli": "dist/index.js"
   },
   "scripts": {
-    "build": "eslint src --ext .ts && tsc",
+    "build": "eslint src --ext .ts && tsc && node -e \"require('fs').cpSync('./package.json', './dist/package.json')\"",
     "lint": "eslint src --ext .ts",
-    "test": "jest"
+    "test": "node --experimental-vm-modules node_modules/.bin/jest"
   },
   "keywords": [
     "fishbone",

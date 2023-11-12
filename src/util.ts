@@ -1,9 +1,26 @@
+import { readFileSync } from 'fs'
+
 let cachedVersion: string | undefined
 
 export function version(): string {
   // read version from package.json
   if (cachedVersion === undefined) {
-    cachedVersion = require('../package.json').version
+    const pkgJsonUrl = new URL('./package.json', import.meta.url)
+    let json: any | undefined
+    try {
+      json = readFileSync(new URL('./package.json', import.meta.url), 'utf8')
+    } catch (e) {
+      // during jest test this is expected... (all quite messy)
+      console.log(`version() readFileSync failed: ${e}`)
+      json = readFileSync(new URL('../package.json', import.meta.url), 'utf8')
+      console.log(`version() readFileSync succeeded`)
+    }
+    try {
+      const pkg = JSON.parse(json)
+      cachedVersion = pkg.version
+    } catch (e) {
+      cachedVersion = 'unknown'
+    }
   }
   return cachedVersion || 'unknown'
 }
