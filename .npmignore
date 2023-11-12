@@ -2,5 +2,6 @@
 .eslintrc.json
 .prettierrc.json
 tsconfig.json
+jest.config.ts
 sample_config.json
 src/
