@@ -15,7 +15,8 @@
   "scripts": {
     "build": "eslint src --ext .ts && tsc && node -e \"require('fs').cpSync('./package.json', './dist/package.json')\"",
     "lint": "eslint src --ext .ts",
-    "test": "node --experimental-vm-modules node_modules/.bin/jest"
+    "test": "node --experimental-vm-modules node_modules/.bin/jest",
+    "prepublish": "npm run build"
   },
   "keywords": [
     "fishbone",
@@ -35,6 +36,13 @@
         "name": "alpha",
         "prerelease": true
       }
+    ],
+    "extends": "semantic-release-npm-github-publish",
+    "plugins": [
+      "@semantic-release/commit-analyzer",
+      "@semantic-release/release-notes-generator",
+      "@semantic-release/npm",
+      "@semantic-release/github"
     ]
   },
   "dependencies": {
@@ -69,6 +77,7 @@
     "eslint": "^8.52.0",
     "jest": "^29.7.0",
     "semantic-release": "^22.0.6",
+    "semantic-release-npm-github-publish": "^1.5.4",
     "ts-jest": "^29.1.1",
     "ts-node": "^10.9.1",
     "typescript": "^5.2.2"
