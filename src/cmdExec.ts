@@ -278,7 +278,7 @@ function objectMember<T>(obj: any, key: string): { value: T } {
 
 const processBadge = async (badge: FBBadge, adltClient: AdltRemoteClient, rcResult: { value: string | number | undefined }) => {
   try {
-    if (badge.conv && badge.source.startsWith('ext:mbehr1.dlt-logs/')) {
+    if (badge.conv && badge.source && typeof badge.source === 'string' && badge.source.startsWith('ext:mbehr1.dlt-logs/')) {
       const rq = rqUriDecode(badge.source)
       // console.log(`rqCmd.path=${rqCmd.path}`)
       if (rq.path.endsWith('/filters?')) {
