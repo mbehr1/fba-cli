@@ -13,7 +13,7 @@
     "fba-cli": "dist/index.js"
   },
   "scripts": {
-    "build": "eslint src --ext .ts && tsc && node -e \"require('fs').cpSync('./package.json', './dist/package.json')\"",
+    "build": "eslint src --ext .ts && tsc",
     "lint": "eslint src --ext .ts",
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
     "prepublish": "npm run build"
