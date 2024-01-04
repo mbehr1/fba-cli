@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
 
+## [1.1.1](https://github.com/mbehr1/fba-cli/compare/v1.1.0...v1.1.1) (2024-01-04)
+
+
+### fix
+
+* **export:** change file name ext to dlf ([cb99dca](https://github.com/mbehr1/fba-cli/commit/cb99dcaa9ac38e8269e5bdd67c9f9d5da3b7f065))
+* **export:** change file name ext to dlf ([f67ba79](https://github.com/mbehr1/fba-cli/commit/f67ba799250ca0529257b26baea3cbde80f814f1))
+
 # [1.1.0](https://github.com/mbehr1/fba-cli/compare/v1.0.7...v1.1.0) (2024-01-04)
 
 
