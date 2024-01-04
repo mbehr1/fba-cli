@@ -8,6 +8,10 @@ Execution performs:
 - run all badges queries on a list of provided DLT logs
 - generate a markdown report with any output from either the upper or the lower badge of all root causes.
 
+### Other features
+
+- Can be used to export embedded dlt-filters from the fishbone to be used with DLT-Viewer.
+
 ### How to use
 
 Preconditions:
@@ -75,6 +79,13 @@ and then use `fba-cli`:
 # fba-cli exec -p host:port -c <config_file> <list of fba files> <list of DLT files>
 # e.g.
 fba-cli exec -p 127.0.0.1:7777 -c config.json analysis.fba recorded.dlt recorded_p2.dlt > analysis_report.md
+```
+
+### Export filters in DLT-Viewer format:
+
+```bash
+# fba-cli export -f dlt-viewer <name of fba file> <name of zip file containing the .dlf filters>
+fba-cli export -f dlt-viewer analysis.fba analysis_filters.zip
 ```
 
 

@@ -226,7 +226,7 @@ function exportFilter(filter: any, zipFile: JSZip, dirs: string[]): number {
         }
         const xmlFileContent = xml.end({ prettyPrint: true })
         //console.log(green(`exporting filter: xml='${xmlFileContent.length}'`))
-        zipFile.file(dirs.join('/') + '.xml', xmlFileContent)
+        zipFile.file(dirs.join('/') + '.dlf', xmlFileContent)
       }
       return exportedFilters.length
     } catch (e) {
@@ -275,7 +275,7 @@ function exportFilterFrags(filterFrag: any): XMLBuilder[] {
   fragToRet.ele({ enablefilter: 'enabled' in filterFrag ? (filterFrag.enabled ? 1 : 0) : 1 })
   fragToRet.ele({ enableecuid: 'ecu' in filterFrag ? 1 : 0 })
   // enableregexp_Ecuid doesn't exist -> export anyhow? ecuIsRegex
-  fragToRet.ele({ enableenableapplicationid: 'apid' in filterFrag ? 1 : 0 })
+  fragToRet.ele({ enableapplicationid: 'apid' in filterFrag ? 1 : 0 })
   fragToRet.ele({ enableregexp_Appid: 'apidIsRegex' in filterFrag ? (filterFrag.apidIsRegex ? 1 : 0) : 0 })
   fragToRet.ele({ enablecontextid: 'ctid' in filterFrag ? 1 : 0 })
   fragToRet.ele({ enableregexp_Context: 'ctidIsRegex' in filterFrag ? (filterFrag.ctidIsRegex ? 1 : 0) : 0 })
