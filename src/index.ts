@@ -7,6 +7,7 @@
 import { Command } from 'commander'
 import { version } from './util.js'
 import { cmdExec } from './cmdExec.js'
+import { cmdExport } from './cmdExport.js'
 
 try {
   const program = new Command()
@@ -25,6 +26,14 @@ try {
     // .option('-j, --junit <output>', 'junit output filename ')
     .argument('<files...>', 'FBA and DLT files to be processed')
     .action(cmdExec)
+
+  program
+    .command('export')
+    .description('export info from FBA files')
+    .requiredOption('-f, --format <type>', 'format to export: currently only "dlt-viewer" for filters in dlt-viewer xml format')
+    .argument('<fbaFile>', 'FBA file where to export from')
+    .argument('<zipFile>', 'output zip file path. Existing ones will be overwritten!')
+    .action(cmdExport)
 
   program.parse()
   const options = program.opts()

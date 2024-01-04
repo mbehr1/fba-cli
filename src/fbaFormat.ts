@@ -39,6 +39,7 @@ export interface FBAttribute {
 }
 export interface FBEffect {
   fbUid: string
+  name?: string
   categories: FBCategory[]
 }
 
@@ -47,7 +48,7 @@ export interface FBACheckboxProps {
   value?: any
   instructions?: string | { markdownFormat: boolean; textValue: string }
   backgroundDescription?: string | { markdownFormat: boolean; textValue: string }
-  filter?: any // todo
+  filter?: FBFilter
   badge?: FBBadge
   badge2?: FBBadge
 }
@@ -64,7 +65,15 @@ export interface FBRootCause {
 
 export interface FBCategory {
   fbUid: string
+  name?: string
   rootCauses: FBRootCause[]
+}
+
+// todo verify those entries! (source & jsonPath confirmed)
+export interface FBFilter {
+  source: string // restQuery
+  jsonPath?: string // not needed for apply-filter!
+  conv?: string // not needed for apply-filter, check! length | index:idx | func: fn(result)...
 }
 
 export interface FBBadge {
