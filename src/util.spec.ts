@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals'
-import { version } from './util'
+import { version, containsRegexChars } from './util'
 
 describe('getVersion', () => {
   it('should return a version', () => {
@@ -13,5 +13,17 @@ describe('getVersion', () => {
     // even if called twice (as impl caches)
     const v2 = version()
     expect(v2).toMatch(/\d+\.\d+\.\d+/)
+  })
+})
+
+describe('containsRegexChars', () => {
+  it('should return false on regular chars', () => {
+    expect(containsRegexChars('foo')).toBe(false)
+  })
+  it('should return false on e.g. pipe char', () => {
+    expect(containsRegexChars('foo|bar')).toBe(true)
+  })
+  it('should return false on e.g. \\ char', () => {
+    expect(containsRegexChars('foo\\bar')).toBe(true)
   })
 })

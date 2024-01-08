@@ -8,7 +8,7 @@ import { fragment, convert, create } from 'xmlbuilder2'
 
 import { FBEffect, Fishbone, getFBDataFromText, rqUriDecode } from './fbaFormat.js'
 import { XMLBuilder } from 'xmlbuilder2/lib/interfaces.js'
-import { version } from './util.js'
+import { version, containsRegexChars } from './util.js'
 import { finished } from 'node:stream/promises'
 
 const error = chalk.bold.red
@@ -264,22 +264,27 @@ function exportFilterFrags(filterFrag: any): XMLBuilder[] {
   const fragToRet = fragment().ele('filter')
   fragToRet.ele({ type: filterFrag.type ?? 0 })
   fragToRet.ele({ name: filterFrag.name ?? '' }) // todo or use e.g. a name of the rootcause as fallback?
-  fragToRet.ele({ ecuid: filterFrag.ecu ?? '' })
-  fragToRet.ele({ applicationid: filterFrag.apid ?? '' })
-  fragToRet.ele({ contextid: filterFrag.ctid ?? '' })
+  const ecu = filterFrag.ecu ?? ''
+  fragToRet.ele({ ecuid: ecu })
+  const apid = filterFrag.apid ?? ''
+  fragToRet.ele({ applicationid: apid })
+  const ctid = filterFrag.ctid ?? ''
+  fragToRet.ele({ contextid: ctid })
   fragToRet.ele({ headertext: '' })
-  fragToRet.ele({ payloadtext: filterFrag.payloadRegex ?? filterFrag.payload ?? '' })
+
+  const payloadtext = filterFrag.payloadRegex ?? filterFrag.payload ?? ''
+  fragToRet.ele({ payloadtext: payloadtext })
   fragToRet.ele({ logLevelMax: filterFrag.loglevelMax ?? 0 })
   fragToRet.ele({ logLevelMin: filterFrag.logLevelMin ?? 0 })
 
   fragToRet.ele({ enablefilter: 'enabled' in filterFrag ? (filterFrag.enabled ? 1 : 0) : 1 })
   fragToRet.ele({ enableecuid: 'ecu' in filterFrag ? 1 : 0 })
   // enableregexp_Ecuid doesn't exist -> export anyhow? ecuIsRegex
-  fragToRet.ele({ enableapplicationid: 'apid' in filterFrag ? 1 : 0 })
-  fragToRet.ele({ enableregexp_Appid: 'apidIsRegex' in filterFrag ? (filterFrag.apidIsRegex ? 1 : 0) : 0 })
-  fragToRet.ele({ enablecontextid: 'ctid' in filterFrag ? 1 : 0 })
-  fragToRet.ele({ enableregexp_Context: 'ctidIsRegex' in filterFrag ? (filterFrag.ctidIsRegex ? 1 : 0) : 0 })
-  fragToRet.ele({ enablepayloadtext: 'payloadRegex' in filterFrag || 'payload' in filterFrag ? 1 : 0 })
+  fragToRet.ele({ enableapplicationid: apid.length > 0 ? 1 : 0 })
+  fragToRet.ele({ enableregexp_Appid: 'apidIsRegex' in filterFrag ? (filterFrag.apidIsRegex ? 1 : 0) : containsRegexChars(apid) ? 1 : 0 })
+  fragToRet.ele({ enablecontextid: ctid.length > 0 ? 1 : 0 })
+  fragToRet.ele({ enableregexp_Context: 'ctidIsRegex' in filterFrag ? (filterFrag.ctidIsRegex ? 1 : 0) : containsRegexChars(ctid) ? 1 : 0 })
+  fragToRet.ele({ enablepayloadtext: payloadtext.length > 0 ? 1 : 0 })
   fragToRet.ele({ enableregexp_Payload: filterFrag.payloadRegex ? 1 : 0 })
   fragToRet.ele({ ignoreCase_Payload: 'ignoreCasePayload' in filterFrag ? (filterFrag.ignoreCasePayload ? 1 : 0) : 0 })
   fragToRet.ele({ enableLogLevelMax: 'loglevelMax' in filterFrag ? 1 : 0 })

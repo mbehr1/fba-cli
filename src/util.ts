@@ -47,3 +47,31 @@ export function sleep(ms: number): Promise<void> {
     setTimeout(resolve, ms)
   })
 }
+
+export function containsRegexChars(text: String): boolean {
+  return text.match(/[\^\$\*\+\?\(\)\[\]\{\}\|\.\-\\\=\!\<\>\,]/g) !== null
+  /*
+   s.contains(|c| {
+        c == '^'
+            || c == '$'
+            || c == '*'
+            || c == '+'
+            || c == '?'
+            || c == '('
+            || c == ')'
+            || c == '['
+            || c == ']'
+            || c == '{'
+            || c == '}'
+            || c == '|'
+            || c == '.'
+            || c == '-'
+            || c == '\\'
+            || c == '='
+            || c == '!'
+            || c == '<'
+            || c == '>'
+            || c == ','
+    })
+  */
+}
