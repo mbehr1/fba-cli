@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
 
+## [1.1.2](https://github.com/mbehr1/fba-cli/compare/v1.1.1...v1.1.2) (2024-01-08)
+
+
+### fix
+
+* **export:** autodetect regex for apid/ctid ([86b9cd0](https://github.com/mbehr1/fba-cli/commit/86b9cd0b3661decaba172763260ac9b64c8e02ad))
+* **export:** autodetect regex for apid/ctid ([0615ff8](https://github.com/mbehr1/fba-cli/commit/0615ff8d95b394d3fd6bf466dd84ae072b614d1a))
+
 ## [1.1.1](https://github.com/mbehr1/fba-cli/compare/v1.1.0...v1.1.1) (2024-01-04)
 
 
