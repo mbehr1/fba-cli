@@ -1,7 +1,6 @@
 /**
  * todos:
  * [] load all fba filters upfront and then stream adlt only so that no memory is kept
- * [] add lifecycle summary/table to report
  * [] add glob support for files passed as arguments
  * [] add option to include matching messages in a collapsable section
  * [] support markdown description from fba instructions and backgroundDescription
@@ -189,6 +188,7 @@ export const cmdExec = async (files: string[], options: any) => {
                 adltVersion,
                 files: nonFbaFiles,
                 pluginCfgs,
+                lifecycles: [],
               },
               children: [],
             }
@@ -258,6 +258,9 @@ export const cmdExec = async (files: string[], options: any) => {
         if (report) {
           multibar.log(`Generating report...\n`)
           multibar.update()
+          // update lifecycle summary
+          report.data.lifecycles = Array.from(adltClient.lifecyclesByPersistentId).map(([persistentId, lifecycle]) => lifecycle)
+
           //console.log(JSON.stringify(report, null, 2)) // use unist-util-inspect
           // console.log(`report is=${is(report, 'FbaExecReport')}`)
           // filter all value.badge = Number(0)
