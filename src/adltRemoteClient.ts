@@ -389,8 +389,8 @@ export class AdltRemoteClient {
    * needs to be careful!
    * @returns list of matching messages (as Promise)
    */
-  getMatchingMessages(filters: any[], maxMsgsToReturn: number): Promise<FilterableDltMsg[]> {
-    let p = new Promise<FilterableDltMsg[]>((resolve, reject) => {
+  getMatchingMessages(filters: any[], maxMsgsToReturn: number): Promise<ViewableDltMsg[]> {
+    let p = new Promise<ViewableDltMsg[]>((resolve, reject) => {
       const matchingMsgs: AdltMsg[] = []
       // sort the filters here into the enabled pos and neg:
       try {
