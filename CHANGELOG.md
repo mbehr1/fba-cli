@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
 
+# [1.2.0](https://github.com/mbehr1/fba-cli/compare/v1.1.2...v1.2.0) (2024-09-29)
+
+
+### chore
+
+* **deps:** update dependencies ([40e0209](https://github.com/mbehr1/fba-cli/commit/40e02097eee5331c521a531b09ccbb1cd521181c))
+* update remote types to match adlt 0.60 ([2939946](https://github.com/mbehr1/fba-cli/commit/29399463ab4b89307f42837ee5e83c983e0d8272))
+
+
+### feat
+
+* add class DltFilter ([54b48f4](https://github.com/mbehr1/fba-cli/commit/54b48f40a6a3d8ff42c3904eac33a27bb897fa99))
+* add first events support ([7a0c822](https://github.com/mbehr1/fba-cli/commit/7a0c822c1edc73f8776d929b006b4e3f4c0e3cf6))
+* add support for events ([f5ea0b1](https://github.com/mbehr1/fba-cli/commit/f5ea0b1b238e45d62b12d2e37c3f56de3f4b6adb))
+
+
+### fix
+
+* at startup wait for all msgs being loaded ([c90d048](https://github.com/mbehr1/fba-cli/commit/c90d048f85c519ba046500b3dedfeaf15acb38b6))
+* getMatchingMessages returns ViewableDltMsgs ([9d78315](https://github.com/mbehr1/fba-cli/commit/9d7831567b9642e33609d10b1b1e9ba538f63ee3))
+* pass bintype Progress to fileBasedMsgsHandler ([5c72ac0](https://github.com/mbehr1/fba-cli/commit/5c72ac0b9a973c2ab42e6f6000af3860cfb53ef7))
+
 ## [1.1.2](https://github.com/mbehr1/fba-cli/compare/v1.1.1...v1.1.2) (2024-01-08)
 
 
