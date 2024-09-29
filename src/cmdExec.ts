@@ -1,5 +1,6 @@
 /**
  * todos:
+ * [] load all fba filters upfront and then stream adlt only so that no memory is kept
  * [] add lifecycle summary/table to report
  * [] add glob support for files passed as arguments
  * [] add option to include matching messages in a collapsable section
@@ -16,17 +17,19 @@ import { default as jp } from 'jsonpath'
 
 import chalk from 'chalk'
 import { MultiBar } from 'cli-progress'
-import { AdltRemoteClient, FileBasedMsgsHandler, MsgType, char4U32LeToString, getAdltProcessAndPort } from './adltRemoteClient.js'
-import { FBBadge, FBCategory, FBEffect, Fishbone, getFBDataFromText, rqUriDecode } from './fbaFormat.js'
+import { AdltRemoteClient, DltFilter, FileBasedMsgsHandler, MsgType, getAdltProcessAndPort } from './adltRemoteClient.js'
+import { FBBadge, FBEffect, FBFilter, getFBDataFromText, rqUriDecode } from './fbaFormat.js'
 import {
   FbCategoryResult,
   FbEffectResult,
+  FbEvent,
   FbRootCauseResult,
   FbaExecReport,
   FbaResult,
   fbReportToMdast,
   hideBadge2Value,
   hideBadgeValue,
+  hideEvents,
 } from './execReport.js'
 import { Node } from 'unist'
 import { inspect } from 'unist-util-inspect'
@@ -36,9 +39,12 @@ import { toMarkdown } from 'mdast-util-to-markdown'
 import { ChildProcess } from 'child_process'
 import path from 'path'
 import { sleep } from './util.js'
+import { gfmTableToMarkdown } from 'mdast-util-gfm-table'
 
 const error = chalk.bold.red
 const warning = chalk.bold.yellow
+
+const numberFormat = new Intl.NumberFormat('de-DE', { style: 'decimal', maximumFractionDigits: 0 })
 
 export const cmdExec = async (files: string[], options: any) => {
   // console.log('cmdExec', files, options)
@@ -84,6 +90,8 @@ export const cmdExec = async (files: string[], options: any) => {
       console.log(warning(`Dont' know what to do with the other ${nonFbaFiles.length} files!`))
     }
   } else {
+    let totalNrOfMsgs: number | undefined = undefined
+
     //console.log('exec: processing...')
     const multibar = new MultiBar({
       clearOnComplete: false,
@@ -103,11 +111,18 @@ export const cmdExec = async (files: string[], options: any) => {
         switch (msg.tag) {
           case 'FileInfo':
             const fi = msg.value
-            barMsgsLoaded.setTotal(fi.nr_msgs)
+            // receiving twice the same value indicates processing finished
+            if (fi.nr_msgs === barMsgsLoaded.getTotal()) {
+              totalNrOfMsgs = fi.nr_msgs
+            } else {
+              barMsgsLoaded.setTotal(fi.nr_msgs)
+            }
             break
           case 'Lifecycles':
             const li = msg.value
             //multibar.log(`Got ${li.length} lifecycles ${char4U32LeToString(li[0]?.ecu || 0)}\n`)
+            break
+          case 'Progress': // todo show it? (e.g. during extraction of archives)
             break
         }
       } catch (e) {
@@ -178,20 +193,14 @@ export const cmdExec = async (files: string[], options: any) => {
             barAdlt.increment(1, { file: 'adlt files opened' })
             // load dlt files
             multibar.log(`Processing DLT files...\n`)
-            // todo currently adlt doesn't indicate once it finished loading the files.
-            // so for now we do wait 2s until the msg.total don't change any more
-            let lastTotal = barAdlt.getTotal()
-            for (let i = 0; i < 1000; i++) {
-              await sleep(2000)
-              const curTotal = barAdlt.getTotal()
-              if (lastTotal === curTotal && !(lastTotal === 0 && i < 20)) {
-                // wait for initial msgs a bit longer (up to 40s due to plugin loading...)
+            // wait until all msgs are loaded (max 1h...)
+            for (let i = 0; i < 3600; i++) {
+              await sleep(1000)
+              if (totalNrOfMsgs !== undefined) {
                 break
-              } else {
-                lastTotal = curTotal
               }
             }
-            multibar.log(`Processing fba files...\n`)
+            multibar.log(`Processing fba files for ${totalNrOfMsgs ? numberFormat.format(totalNrOfMsgs) : 0} msgs...\n`)
             // exec the fba files
             for (const fbaFile of fbaFiles) {
               const fbaResult: FbaResult = {
@@ -205,7 +214,11 @@ export const cmdExec = async (files: string[], options: any) => {
               report.children.push(fbaResult)
               barFbas.increment(1, { file: fbaFile })
               // console.log(`executing fba file:'${fbaFile}'`)
-              await processFbaFile(fbaFile, fbaResult, adltClient).then(
+              await processFbaFile(fbaFile, fbaResult, adltClient, {
+                processBadge1: !options.no_badge1,
+                processBadge2: !options.no_badge2,
+                processsEvents: !options.no_events,
+              }).then(
                 async function (promises): Promise<void> {
                   //barFbas.increment(nrOfFbas)
                   barQueries.setTotal(barQueries.getTotal() + promises.length)
@@ -244,7 +257,8 @@ export const cmdExec = async (files: string[], options: any) => {
             return (
               node.type !== 'FbRootCauseResult' ||
               !hideBadgeValue((node as FbRootCauseResult).value.badge) ||
-              !hideBadge2Value((node as FbRootCauseResult).value.badge2)
+              !hideBadge2Value((node as FbRootCauseResult).value.badge2) ||
+              !hideEvents((node as FbRootCauseResult).value.events)
             )
           })
           if (report) {
@@ -252,7 +266,7 @@ export const cmdExec = async (files: string[], options: any) => {
             const reportAsMd = fbReportToMdast(report)
             try {
               mdassert(reportAsMd)
-              console.log(toMarkdown(reportAsMd))
+              console.log(toMarkdown(reportAsMd, { extensions: [gfmTableToMarkdown({ tablePipeAlign: false })] }))
             } catch (e) {
               console.log(inspect(reportAsMd))
               console.warn(`reportAsMd got error:${e}`)
@@ -273,6 +287,109 @@ function objectMember<T>(obj: any, key: string): { value: T } {
     set value(t: T) {
       obj[key] = t
     },
+  }
+}
+
+const EVENT_FILTER_REGEXP = /\?\<EVENT_([a-zA-Z0-9]+?)_(.+?)\>/ // todo might weaken to EVENT_*_* as well if convFunction allowed/supported
+
+const isEventFilter = (filter: any): boolean => {
+  try {
+    if (typeof filter === 'object' && filter.type === 3) {
+      if (filter.payloadRegex && typeof filter.payloadRegex === 'string') {
+        //const str = filter.payloadRegex as string
+        return EVENT_FILTER_REGEXP.test(filter.payloadRegex)
+      }
+    }
+  } catch (e) {
+    console.warn(`isEventFilter got error: ${e}`)
+  }
+  return false
+}
+
+const processFilter = async (filter: FBFilter, adltClient: AdltRemoteClient, rcResult: { value: FbEvent[] | undefined }) => {
+  try {
+    if (filter.source && typeof filter.source === 'string' && filter.source.startsWith('ext:mbehr1.dlt-logs/')) {
+      const rq = rqUriDecode(filter.source)
+      if (rq.path.endsWith('/filters?')) {
+        // console.log(`got filter: ${JSON5.stringify(rq.commands.map((command)=>command.cmd))}`)
+        for (const cmd of rq.commands) {
+          switch (cmd.cmd) {
+            case 'add':
+            case 'delete':
+            case 'disableAll':
+            case 'deleteAll':
+              break // ignore
+            case 'report':
+              // for reports we use only the event filters
+              // that captures with group name "EVENT_.+_.+" (EVENT_<type>_<title>)
+
+              //console.log(`got filter cmd.report: ${JSON5.stringify(cmd.param.length)}`)
+              const params = JSON5.parse(cmd.param)
+              if (Array.isArray(params)) {
+                //console.log(` cmd.report params: ${JSON5.stringify(params)}`)
+                const eventFilters: any[] = []
+                for (const filter of params) {
+                  if (isEventFilter(filter)) {
+                    //console.log(` cmd.report event filter: ${JSON5.stringify(filter, (key, value) => key==='reportOptions' ? undefined: value)}`)
+                    eventFilters.push(filter)
+                  }
+                }
+                if (eventFilters.length > 0) {
+                  await adltClient.getMatchingMessages(eventFilters, 1000).then((msgs) => {
+                    // TODO: limit 1000???
+                    try {
+                      if (msgs.length > 0) {
+                        const dltFilters = eventFilters.map((fObj) => new DltFilter(fObj))
+                        // check which message matched and create an event with attributes: type, title, summary, ...
+                        const events: FbEvent[] = []
+                        for (const msg of msgs) {
+                          const filter = dltFilters.find((filter) => filter.matches(msg))
+                          if (filter !== undefined) {
+                            const matches = filter.payloadRegex?.exec(msg.payloadString)
+                            if (matches && matches.length > 0 && matches.groups) {
+                              for (const group of Object.keys(matches.groups)) {
+                                const groupMatch = EVENT_FILTER_REGEXP.exec(`?<${group}>`)
+                                if (groupMatch) {
+                                  const event: FbEvent = {
+                                    evType: groupMatch[1],
+                                    title: groupMatch[2],
+                                    timeInMs: msg.receptionTimeInMs,
+                                    // keep empty as we use the lifecycle time: msg.lifecycle? msg.lifecycle.lifecycleStart+msg.timeStamp
+                                    timeStamp: msg.timeStamp,
+                                    lifecycle: msg.lifecycle,
+                                    summary: matches.groups[group],
+                                    msgText: `\#${msg.index} ${msg.timeStamp / 10000}s ${msg.ecu} ${msg.apid} ${msg.ctid} ${
+                                      msg.payloadString
+                                    }`,
+                                  }
+                                  events.push(event)
+                                }
+                              }
+                            }
+                          }
+                        }
+                        //console.log(`processFilter.msgs got msgs:${msgs.length}`)
+                        rcResult.value = events
+                      }
+                    } catch (e) {
+                      console.log(warning(`processFilter.msgs got error:${e}`))
+                      // todo: where to return errors? rcResult.value = [`processFilter.msgs got error:${e}`]
+                    }
+                  })
+                }
+              }
+              break
+            default:
+              console.log(`got filter cmd: ${JSON5.stringify(cmd)}`)
+          }
+        }
+      }
+    } else {
+      console.log(warning(`processFilter ignored:${JSON5.stringify(filter)}`))
+    }
+  } catch (e) {
+    console.log(warning(`processFilter got error:${e}`))
+    // todo: where to put the errors? rcResult.value = [`processFilter got error:${e}`]
   }
 }
 
@@ -341,7 +458,7 @@ const processBadge = async (badge: FBBadge, adltClient: AdltRemoteClient, rcResu
                           break
                       }
                     } catch (e) {
-                      console.warn(`processBadg.msgs func got error:${e}`)
+                      console.warn(`processBadge.msgs func got error:${e}`)
                     }
                     break
                   default:
@@ -375,7 +492,12 @@ const processBadge = async (badge: FBBadge, adltClient: AdltRemoteClient, rcResu
   }
 }
 
-function iterateFbEffects(fishbone: FBEffect[], fbaResult: FbaResult, adltClient: AdltRemoteClient) {
+function iterateFbEffects(
+  fishbone: FBEffect[],
+  fbaResult: FbaResult,
+  adltClient: AdltRemoteClient,
+  options: { processBadge1: boolean; processBadge2: boolean; processsEvents: boolean },
+) {
   const promises: Promise<void>[] = []
   for (const effect of fishbone) {
     const effectResult: FbEffectResult = {
@@ -399,7 +521,11 @@ function iterateFbEffects(fishbone: FBEffect[], fbaResult: FbaResult, adltClient
         if (category?.rootCauses?.length) {
           for (const rc of category.rootCauses) {
             //console.log(`fbType=${fbType}, fbElement.type=${fbElement.type},fbElement.element=${fbElement.element} parent=${parent.name}`)
-            if (rc.props?.badge || rc.props?.badge2) {
+            if (
+              (options.processsEvents && rc.props?.filter) ||
+              (options.processBadge1 && rc.props?.badge) ||
+              (options.processBadge2 && rc.props?.badge2)
+            ) {
               const rcResult: FbRootCauseResult = {
                 type: 'FbRootCauseResult',
                 data: {
@@ -409,8 +535,9 @@ function iterateFbEffects(fishbone: FBEffect[], fbaResult: FbaResult, adltClient
                   instructions: rc.props.instructions,
                 },
                 value: {
-                  badge: rc.props.badge ? '<pending>' : undefined,
-                  badge2: rc.props.badge2 ? '<pending>' : undefined,
+                  badge: options.processBadge1 && rc.props.badge ? '<pending>' : undefined,
+                  badge2: options.processBadge2 && rc.props.badge2 ? '<pending>' : undefined,
+                  events: undefined,
                 },
               }
               delete rcResult.data.type
@@ -420,11 +547,14 @@ function iterateFbEffects(fishbone: FBEffect[], fbaResult: FbaResult, adltClient
               delete rcResult.data.props
 
               categoryResult.children.push(rcResult)
-              if (rc.props.badge) {
+              if (options.processBadge1 && rc.props.badge) {
                 promises.push(processBadge(rc.props.badge, adltClient, objectMember(rcResult.value, 'badge')))
               }
-              if (rc.props.badge2) {
+              if (options.processBadge2 && rc.props.badge2) {
                 promises.push(processBadge(rc.props.badge2, adltClient, objectMember(rcResult.value, 'badge2')))
+              }
+              if (options.processsEvents && rc.props.filter) {
+                promises.push(processFilter(rc.props.filter, adltClient, objectMember(rcResult.value, 'events')))
               }
             }
             if (rc.type === 'nested' && Array.isArray(rc.data)) {
@@ -436,7 +566,7 @@ function iterateFbEffects(fishbone: FBEffect[], fbaResult: FbaResult, adltClient
                 },
                 children: [],
               }
-              promises.push(...iterateFbEffects(rc.data, nestedResult, adltClient))
+              promises.push(...iterateFbEffects(rc.data, nestedResult, adltClient, options))
               if (nestedResult.children.length) {
                 categoryResult.children.push(nestedResult)
               }
@@ -455,7 +585,12 @@ function iterateFbEffects(fishbone: FBEffect[], fbaResult: FbaResult, adltClient
   return promises
 }
 
-const processFbaFile = async (filePath: string, fbaResult: FbaResult, adltClient: AdltRemoteClient): Promise<Promise<void>[]> => {
+const processFbaFile = async (
+  filePath: string,
+  fbaResult: FbaResult,
+  adltClient: AdltRemoteClient,
+  options: { processBadge1: boolean; processBadge2: boolean; processsEvents: boolean },
+): Promise<Promise<void>[]> => {
   // try to open the file:
   return new Promise<Promise<void>[]>((resolve, reject) => {
     fs.readFile(filePath, 'utf-8', (err, fbaFileContent) => {
@@ -468,7 +603,7 @@ const processFbaFile = async (filePath: string, fbaResult: FbaResult, adltClient
       try {
         const fba = getFBDataFromText(fbaFileContent)
         fbaResult.data.fbaTitle = fba.title
-        const promises = iterateFbEffects(fba.fishbone, fbaResult, adltClient)
+        const promises = iterateFbEffects(fba.fishbone, fbaResult, adltClient, options)
         resolve(promises)
       } catch (e) {
         fbaResult.data.errors.push(`Processing fba got error: ${e}`)

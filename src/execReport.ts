@@ -1,9 +1,10 @@
 import { Node, Parent, Literal } from 'unist'
-import { visit, CONTINUE, SKIP, EXIT } from 'unist-util-visit'
-import { Root } from 'mdast'
+import { visit, CONTINUE, SKIP } from 'unist-util-visit'
+import { Root, TableCell, TableRow } from 'mdast'
 import { is } from 'unist-util-is'
 import { default as JSON5 } from 'json5'
 import { version } from './util.js'
+import { DltLifecycleInfoMinIF } from './adltRemoteClient.js'
 
 // our report type contains the info in a unist compliant AST
 // this can then be exported/transformed to markdown, html, junit, etc.
@@ -49,6 +50,16 @@ export interface FbCategoryResult extends Parent {
   children: (FbRootCauseResult | FbaResult)[]
 }
 
+export interface FbEvent {
+  evType: string
+  title: string
+  timeInMs?: number
+  timeStamp: number
+  lifecycle?: DltLifecycleInfoMinIF
+  summary?: string
+  msgText?: string
+}
+
 export interface FbRootCauseResult extends Literal {
   type: 'FbRootCauseResult'
   data: {
@@ -60,6 +71,7 @@ export interface FbRootCauseResult extends Literal {
   value: {
     badge?: string | number
     badge2?: string | number
+    events?: FbEvent[]
   }
 }
 
@@ -68,6 +80,24 @@ export const hideBadgeValue = (value: string | number | undefined): boolean =>
 
 export const hideBadge2Value = (value: string | number | undefined): boolean => {
   return value === undefined || (typeof value === 'string' && value.length === 0)
+}
+
+export const hideEvents = (events: FbEvent[] | undefined): boolean => {
+  return events === undefined || events.length === 0
+}
+
+const asTableCell = (text: string): TableCell => {
+  return {
+    type: 'tableCell',
+    children: [{ type: 'text', value: text }],
+  }
+}
+
+const asTableRow = (cellTexts: string[]): TableRow => {
+  return {
+    type: 'tableRow',
+    children: cellTexts.map((text) => asTableCell(text)),
+  }
 }
 
 export function fbReportToMdast(report: FbaExecReport): Root {
@@ -111,6 +141,57 @@ export function fbReportToMdast(report: FbaExecReport): Root {
             { type: 'text', value: 'ℹ: ' }, // or emoji :information_source: ?
             { type: 'text', value: rc.value.badge2?.toString() || '' },
           ],
+        })
+      }
+      const events = rc.value.events
+      if (!hideEvents(events)) {
+        const eventChildsAsTableRows: TableRow[] = events
+          ? events.map((event, idx) => {
+              return asTableRow([
+                (idx + 1).toString(),
+                event.lifecycle ? event.lifecycle.persistentId.toString() : '',
+                event.timeInMs ? new Date(event.timeInMs).toLocaleString('de-DE') : '<notime>',
+                event.evType,
+                event.title,
+                event.summary || '',
+                event.msgText || '',
+              ])
+            })
+          : []
+        reportAsMd.children.push({
+          type: 'paragraph',
+          children: [
+            { type: 'html', value: `<details>` },
+            { type: 'html', value: `<summary>` },
+            { type: 'text', value: `Events: ${events?.length}` },
+            { type: 'html', value: `</summary><br>` },
+          ],
+        })
+        reportAsMd.children.push({
+          type: 'table',
+          align: ['right', 'left', 'left', 'left', 'left', 'left', 'left'],
+          children: [
+            asTableRow([
+              '#',
+              'LC',
+              `Time (${
+                Intl.DateTimeFormat('de-DE', { timeZoneName: 'longOffset' })
+                  .formatToParts(
+                    events && events.length > 0 && events[0].timeInMs !== undefined ? new Date(events[0].timeInMs) : Date.now(),
+                  )
+                  .find((part) => part.type === 'timeZoneName')?.value || 'UTC'
+              })`,
+              'Event type',
+              'Title',
+              'Summary',
+              'Details',
+            ]),
+            ...eventChildsAsTableRows,
+          ],
+        })
+        reportAsMd.children.push({
+          type: 'paragraph',
+          children: [{ type: 'html', value: `</details>` }],
         })
       }
       // add backgroundDescription
