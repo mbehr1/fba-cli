@@ -330,6 +330,7 @@ export class AdltRemoteClient {
         case 'FileInfo':
         case 'Lifecycles':
         case 'EacInfo':
+        case 'Progress':
         case 'PluginState':
           {
             this.fileBasedMsgsHandler(bin_type)
