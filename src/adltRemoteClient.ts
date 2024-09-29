@@ -58,6 +58,89 @@ export function char4U32LeToString(char4le: number): string {
   return String.fromCharCode(...codes)
 }
 
+// todo duplicate from dlt-logs... refactor... here without lcRootNode...
+class AdltLifecycleInfo implements DltLifecycleInfoMinIF {
+  ecu: string
+  id: number
+  nrMsgs: number
+  // has bigints that dont serialize well, binLc: remote_types.BinLifecycle;
+  adjustTimeMs: number = 0
+  startTime: number // in ms
+  resumeTime?: number
+  endTime: number // in ms
+  swVersion?: string
+  // node: LifecycleNode
+  // todo... ecuLcNr: number
+  // decorationType?: vscode.TextEditorDecorationType
+
+  constructor(binLc: remote_types.BinLifecycle) {
+    this.ecu = char4U32LeToString(binLc.ecu)
+    this.id = binLc.id
+    this.nrMsgs = binLc.nr_msgs
+    this.startTime = Number(binLc.start_time / 1000n) // start time in ms for calc.
+    this.resumeTime = binLc.resume_time !== undefined ? Number(binLc.resume_time / 1000n) : undefined
+    this.endTime = Number(binLc.end_time / 1000n) // end time in ms
+    this.swVersion = binLc.sw_version
+    //this.binLc = binLc;
+    // this.ecuLcNr = ecuNode.children.length
+    if (this.swVersion !== undefined) {
+//      if (!ecuNode.swVersions.includes(this.swVersion)) {
+//        ecuNode.label = `ECU: ${this.ecu}, SW${
+//          ecuNode.swVersions.length > 1 ? `(${ecuNode.swVersions.length}):` : `:`
+//        } ${ecuNode.swVersions.join(' and ')}`
+//      }
+    }
+  }
+
+  update(binLc: remote_types.BinLifecycle) {
+    this.nrMsgs = binLc.nr_msgs
+    this.startTime = Number(binLc.start_time / 1000n) // start time in ms
+    this.resumeTime = binLc.resume_time !== undefined ? Number(binLc.resume_time / 1000n) : undefined
+    this.endTime = Number(binLc.end_time / 1000n) // end time in ms
+    this.swVersion = binLc.sw_version // todo update parent ecuNode if changed
+    // update node (todo refactor)
+    // this.node.label = `LC${this.getTreeNodeLabel()}`
+  }
+
+  get persistentId(): number {
+    return this.id
+  }
+
+  get lifecycleStart(): Date {
+    return new Date(this.adjustTimeMs + this.startTime)
+  }
+
+  get isResume(): boolean {
+    return this.resumeTime !== undefined
+  }
+
+  get lifecycleResume(): Date {
+    if (this.resumeTime !== undefined) {
+      return new Date(this.resumeTime)
+    } else {
+      return this.lifecycleStart
+    }
+  }
+
+  get lifecycleEnd(): Date {
+    return new Date(this.adjustTimeMs + this.endTime)
+  }
+
+  getTreeNodeLabel(): string {
+    return `#${0 /* todo this.ecuLcNr*/}: ${
+      this.resumeTime !== undefined ? `${new Date(this.resumeTime).toLocaleString()} RESUME ` : this.lifecycleStart.toLocaleString()
+    }-${this.lifecycleEnd.toLocaleTimeString()} #${this.nrMsgs}`
+  }
+
+  get tooltip(): string {
+    return `SW:${this.swVersion ? this.swVersion : 'unknown'}`
+  }
+
+  get swVersions(): string[] {
+    return this.swVersion ? [this.swVersion] : []
+  }
+}
+
 export interface RestObject {
   id: string | number
   type: string
@@ -114,7 +197,7 @@ class AdltMsg implements ViewableDltMsg {
   htyp: number
   receptionTimeInMs: number
   timeStamp: number
-  // lifecycle?: DltLifecycleInfoMinIF | undefined
+  lifecycle?: DltLifecycleInfoMinIF | undefined
   lifecycle_id: number
   mcnt: number
   mstp: number
@@ -122,7 +205,7 @@ class AdltMsg implements ViewableDltMsg {
   verbose: boolean
   payloadString: string
 
-  constructor(binMsg: remote_types.BinDltMsg /*, lifecycle?: DltLifecycleInfoMinIF*/) {
+  constructor(binMsg: remote_types.BinDltMsg, lifecycle?: DltLifecycleInfoMinIF) {
     // cached ECU, APID, CTID:
     this._eac = getEACFromIdx(
       getIdxFromEAC({ e: char4U32LeToString(binMsg.ecu), a: char4U32LeToString(binMsg.apid), c: char4U32LeToString(binMsg.ctid) }),
@@ -131,7 +214,7 @@ class AdltMsg implements ViewableDltMsg {
     this.index = binMsg.index
     this.receptionTimeInMs = Number(binMsg.reception_time / 1000n)
     this.timeStamp = binMsg.timestamp_dms
-    //this.lifecycle = lifecycle
+    this.lifecycle = lifecycle
     this.lifecycle_id = binMsg.lifecycle_id
     this.htyp = binMsg.htyp
     this.mcnt = binMsg.mcnt
@@ -182,6 +265,8 @@ export class AdltRemoteClient {
   private _reqCallbacks: ((resp: string) => void)[] = []
   private streamMsgs = new Map<number, StreamMsgData | remote_types.BinType[]>()
 
+  lifecyclesByPersistentId = new Map<number, AdltLifecycleInfo>()
+
   constructor(private fileBasedMsgsHandler: FileBasedMsgsHandler) {}
 
   close() {
@@ -200,6 +285,7 @@ export class AdltRemoteClient {
    * @returns the adlt version connected to
    */
   connectToWebSocket(wssUrl: string): Promise<string> {
+    this.lifecyclesByPersistentId.clear() // not at close to keep the lifecycles for later use e.g. for report generation
     const webSocket = new WebSocket(wssUrl, [], { perMessageDeflate: false, origin: 'adlt-logs', maxPayload: 1_000_000_000 })
     this.webSocket = webSocket
     webSocket.binaryType = 'arraybuffer' // todo ArrayBuffer needed for sink?
@@ -327,8 +413,10 @@ export class AdltRemoteClient {
             }
           }
           break
-        case 'FileInfo':
         case 'Lifecycles':
+          this.processLifecycleUpdates(bin_type.value)
+        // nobreak fallthrough intended
+        case 'FileInfo':
         case 'EacInfo':
         case 'Progress':
         case 'PluginState':
@@ -361,7 +449,7 @@ export class AdltRemoteClient {
             for (let i = 0; i < msgs.length; ++i) {
               let binMsg = msgs[i]
 
-              let msg = new AdltMsg(binMsg /*, this.lifecycleInfoForPersistentId(binMsg.lifecycle_id)*/)
+              let msg = new AdltMsg(binMsg, this.lifecyclesByPersistentId.get(binMsg.lifecycle_id))
               streamData.msgs.push(msg)
             }
             if (streamData.sink.onNewMessages) {
@@ -428,6 +516,18 @@ export class AdltRemoteClient {
       }
     })
     return p
+  }
+
+  processLifecycleUpdates(lifecycles: Array<remote_types.BinLifecycle>) {
+    for (const lc of lifecycles) {
+      const lcInfo = this.lifecyclesByPersistentId.get(lc.id)
+      if (lcInfo !== undefined) {
+        lcInfo.update(lc)
+      } else {
+        const newLcInfo = new AdltLifecycleInfo(lc)
+        this.lifecyclesByPersistentId.set(lc.id, newLcInfo)
+      }
+    }
   }
 }
 

@@ -16,6 +16,7 @@ export interface FbaExecReport extends Parent {
     adltVersion: string
     files: string[]
     pluginCfgs: string
+    lifecycles: DltLifecycleInfoMinIF[]
     [key: string]: any
   }
   children: FbaResult[]
@@ -100,6 +101,8 @@ const asTableRow = (cellTexts: string[]): TableRow => {
   }
 }
 
+const numberFormat = new Intl.NumberFormat('de-DE', { style: 'decimal', maximumFractionDigits: 0 })
+
 export function fbReportToMdast(report: FbaExecReport): Root {
   const reportAsMd: Root = {
     type: 'root',
@@ -149,7 +152,7 @@ export function fbReportToMdast(report: FbaExecReport): Root {
           ? events.map((event, idx) => {
               return asTableRow([
                 (idx + 1).toString(),
-                event.lifecycle ? event.lifecycle.persistentId.toString() : '',
+                event.lifecycle ? event.lifecycle.persistentId.toString() : '', // todo the persistent id is not the one from adlt convert if adlt is started locally and port is used.
                 event.timeInMs ? new Date(event.timeInMs).toLocaleString('de-DE') : '<notime>',
                 event.evType,
                 event.title,
@@ -289,7 +292,7 @@ export function fbReportToMdast(report: FbaExecReport): Root {
           { type: 'break' },
           { type: 'html', value: `<details>` },
           { type: 'html', value: `<summary>` },
-          { type: 'text', value: `pluginCfgs:` },
+          { type: 'text', value: `pluginCfgs used:` },
           { type: 'html', value: `</summary><br>` },
         ],
       })
@@ -301,6 +304,86 @@ export function fbReportToMdast(report: FbaExecReport): Root {
       reportAsMd.children.push(
         { type: 'html', value: `</details>` }, // or as 2nd paragraph?
       )
+      reportAsMd.children.push({ type: 'thematicBreak' })
+
+      const ecuNrMsgs = Array.from(
+        rc.data.lifecycles.reduce((map, lc) => {
+          const curMsg = map.get(lc.ecu)
+          if (curMsg) {
+            map.set(lc.ecu, curMsg + lc.nrMsgs)
+          } else {
+            map.set(lc.ecu, lc.nrMsgs)
+          }
+          return map
+        }, new Map<string, number>()),
+      ).sort((a, b) => b[1] - a[1])
+      const nrMsgsProcessed = ecuNrMsgs.reduce((acc, ecuNrMsgs) => acc + ecuNrMsgs[1], 0)
+      reportAsMd.children.push({
+        type: 'paragraph',
+        children: [
+          {
+            type: 'text',
+            value:
+              ecuNrMsgs.length === 1
+                ? `Processed ${numberFormat.format(nrMsgsProcessed)} messages from ECU: '${ecuNrMsgs[0][0]}'.`
+                : `Processed ${numberFormat.format(nrMsgsProcessed)} messages from ${ecuNrMsgs.length} ECUs: ${ecuNrMsgs
+                    .map(([ecu, nrMsgs]) => `'${ecu}' (${numberFormat.format(nrMsgs)})`)
+                    .join(', ')}.`,
+          },
+        ],
+      })
+      // add lifecycle infos:
+      reportAsMd.children.push({
+        type: 'paragraph',
+        children: [
+          { type: 'html', value: `<details>` },
+          { type: 'html', value: `<summary>` },
+          { type: 'text', value: `Lifecycles: ${rc.data.lifecycles.length}` },
+          { type: 'html', value: `</summary><br>` },
+        ],
+      })
+      if (rc.data.lifecycles.length) {
+        const lifecycles = rc.data.lifecycles
+        const lcsAsTableRows: TableRow[] = lifecycles.map((lc, idx) => {
+          return asTableRow([
+            lc.persistentId.toString(),
+            lc.ecu,
+            lc.isResume && lc.lifecycleResume !== undefined
+              ? lc.lifecycleResume.toLocaleString('de-DE')
+              : lc.lifecycleStart.toLocaleString('de-DE'),
+            lc.lifecycleEnd.toLocaleTimeString('de-DE'),
+            lc.isResume ? 'RESUME' : '',
+            numberFormat.format(lc.nrMsgs),
+            lc.swVersions.join(', ') || '',
+          ])
+        })
+        reportAsMd.children.push({
+          type: 'table',
+          align: ['right', 'left', 'left', 'left', 'left', 'right', 'left'],
+          children: [
+            asTableRow([
+              '#',
+              'ECU',
+              `Start time (${
+                Intl.DateTimeFormat('de-DE', { timeZoneName: 'longOffset' })
+                  .formatToParts(lifecycles[0].lifecycleStart)
+                  .find((part) => part.type === 'timeZoneName')?.value || 'UTC'
+              })`,
+              'End time',
+              'Resume?',
+              'nr msgs',
+              'SW',
+            ]),
+            ...lcsAsTableRows,
+          ],
+        })
+      }
+      reportAsMd.children.push({
+        type: 'paragraph',
+        children: [{ type: 'html', value: `</details>` }],
+      })
+      reportAsMd.children.push({ type: 'thematicBreak' })
+
       return CONTINUE // traverse children as well SKIP // dont traverse children
     }
     console.log(`skipping children of node.type=${node.type}`)

@@ -1,7 +1,6 @@
 /**
  * todos:
  * [] load all fba filters upfront and then stream adlt only so that no memory is kept
- * [] add lifecycle summary/table to report
  * [] add glob support for files passed as arguments
  * [] add option to include matching messages in a collapsable section
  * [] support markdown description from fba instructions and backgroundDescription
@@ -16,7 +15,8 @@ import { default as JSON5 } from 'json5'
 import { default as jp } from 'jsonpath'
 
 import chalk from 'chalk'
-import { MultiBar } from 'cli-progress'
+import cli_progress_pkg from 'cli-progress'
+const { MultiBar, Format } = cli_progress_pkg
 import { AdltRemoteClient, DltFilter, FileBasedMsgsHandler, MsgType, getAdltProcessAndPort } from './adltRemoteClient.js'
 import { FBBadge, FBEffect, FBFilter, getFBDataFromText, rqUriDecode } from './fbaFormat.js'
 import {
@@ -92,15 +92,18 @@ export const cmdExec = async (files: string[], options: any) => {
   } else {
     let totalNrOfMsgs: number | undefined = undefined
 
-    //console.log('exec: processing...')
     const multibar = new MultiBar({
+      forceRedraw: true,
       clearOnComplete: false,
       hideCursor: true,
       format: ' {bar} | {percentage}% | {value}/{total} | {file}',
+      formatTime: (t, options, roundToMultipleOf) => {
+        return Format.TimeFormat(t, options, roundToMultipleOf).padStart(5, ' ')
+      },
     })
     const barAdlt = multibar.create(5, 0, { file: 'starting adlt' })
     const barMsgsLoadedOptions = {
-      format: '                                       {duration}s | {total} msgs read',
+      format: '                                    {duration_formatted} | {total} msgs read',
     }
     const barMsgsLoaded = multibar.create(0, 0, {}, barMsgsLoadedOptions)
     const barFbas = multibar.create(fbaFiles.length, 0)
@@ -185,6 +188,7 @@ export const cmdExec = async (files: string[], options: any) => {
                 adltVersion,
                 files: nonFbaFiles,
                 pluginCfgs,
+                lifecycles: [],
               },
               children: [],
             }
@@ -200,7 +204,9 @@ export const cmdExec = async (files: string[], options: any) => {
                 break
               }
             }
+            barAdlt.increment(1, { file: `adlt finished file processing` })
             multibar.log(`Processing fba files for ${totalNrOfMsgs ? numberFormat.format(totalNrOfMsgs) : 0} msgs...\n`)
+            multibar.update()
             // exec the fba files
             for (const fbaFile of fbaFiles) {
               const fbaResult: FbaResult = {
@@ -240,7 +246,6 @@ export const cmdExec = async (files: string[], options: any) => {
         console.log(error(`Failed to connect to adlt! Got error:${e}`))
       })
       .finally(() => {
-        multibar.stop()
         adltClient.close()
         if (adltProcess) {
           try {
@@ -249,7 +254,13 @@ export const cmdExec = async (files: string[], options: any) => {
             console.log(error(`Failed to kill adlt process! Got error:${e}`))
           }
         }
+        barAdlt.increment(1, { file: `adlt closed` })
         if (report) {
+          multibar.log(`Generating report...\n`)
+          multibar.update()
+          // update lifecycle summary
+          report.data.lifecycles = Array.from(adltClient.lifecyclesByPersistentId).map(([persistentId, lifecycle]) => lifecycle)
+
           //console.log(JSON.stringify(report, null, 2)) // use unist-util-inspect
           // console.log(`report is=${is(report, 'FbaExecReport')}`)
           // filter all value.badge = Number(0)
@@ -275,6 +286,7 @@ export const cmdExec = async (files: string[], options: any) => {
         } else {
           console.log(warning('failed to generate a report!'))
         }
+        multibar.stop()
       })
   }
 }
