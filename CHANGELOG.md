@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
 
+# [1.3.0](https://github.com/mbehr1/fba-cli/compare/v1.2.0...v1.3.0) (2024-09-29)
+
+
+### feat
+
+* **exec:** show lifecycle infos ([804d971](https://github.com/mbehr1/fba-cli/commit/804d9717e3fdc28e55bd555d8cebbb8a35b4c4b6))
+* show lifecycle infos ([5725116](https://github.com/mbehr1/fba-cli/commit/5725116748ac7a890e12f023b6f097c85a6c80e6))
+
+
+### fix
+
+* multibar output ([93de5e9](https://github.com/mbehr1/fba-cli/commit/93de5e9e8af725c962fbf2eb7dd81d044a3d6700))
+
 # [1.2.0](https://github.com/mbehr1/fba-cli/compare/v1.1.2...v1.2.0) (2024-09-29)
 
 
