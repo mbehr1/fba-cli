@@ -131,6 +131,7 @@
     "xmlbuilder2": "^3.1.1"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
     "@types/cli-progress": "^3.11.6",
     "@types/jest": "^29.5.13",
