@@ -40,6 +40,8 @@ import { sleep } from './util.js'
 const error = chalk.bold.red
 const warning = chalk.bold.yellow
 
+const numberFormat = new Intl.NumberFormat('de-DE', { style: 'decimal', maximumFractionDigits: 0 })
+
 export const cmdExec = async (files: string[], options: any) => {
   // console.log('cmdExec', files, options)
 
@@ -84,6 +86,8 @@ export const cmdExec = async (files: string[], options: any) => {
       console.log(warning(`Dont' know what to do with the other ${nonFbaFiles.length} files!`))
     }
   } else {
+    let totalNrOfMsgs: number | undefined = undefined
+
     //console.log('exec: processing...')
     const multibar = new MultiBar({
       clearOnComplete: false,
@@ -103,11 +107,18 @@ export const cmdExec = async (files: string[], options: any) => {
         switch (msg.tag) {
           case 'FileInfo':
             const fi = msg.value
-            barMsgsLoaded.setTotal(fi.nr_msgs)
+            // receiving twice the same value indicates processing finished
+            if (fi.nr_msgs === barMsgsLoaded.getTotal()) {
+              totalNrOfMsgs = fi.nr_msgs
+            } else {
+              barMsgsLoaded.setTotal(fi.nr_msgs)
+            }
             break
           case 'Lifecycles':
             const li = msg.value
             //multibar.log(`Got ${li.length} lifecycles ${char4U32LeToString(li[0]?.ecu || 0)}\n`)
+            break
+          case 'Progress': // todo show it? (e.g. during extraction of archives)
             break
         }
       } catch (e) {
@@ -178,20 +189,14 @@ export const cmdExec = async (files: string[], options: any) => {
             barAdlt.increment(1, { file: 'adlt files opened' })
             // load dlt files
             multibar.log(`Processing DLT files...\n`)
-            // todo currently adlt doesn't indicate once it finished loading the files.
-            // so for now we do wait 2s until the msg.total don't change any more
-            let lastTotal = barAdlt.getTotal()
-            for (let i = 0; i < 1000; i++) {
-              await sleep(2000)
-              const curTotal = barAdlt.getTotal()
-              if (lastTotal === curTotal && !(lastTotal === 0 && i < 20)) {
-                // wait for initial msgs a bit longer (up to 40s due to plugin loading...)
+            // wait until all msgs are loaded (max 1h...)
+            for (let i = 0; i < 3600; i++) {
+              await sleep(1000)
+              if (totalNrOfMsgs !== undefined) {
                 break
-              } else {
-                lastTotal = curTotal
               }
             }
-            multibar.log(`Processing fba files...\n`)
+            multibar.log(`Processing fba files for ${totalNrOfMsgs ? numberFormat.format(totalNrOfMsgs) : 0} msgs...\n`)
             // exec the fba files
             for (const fbaFile of fbaFiles) {
               const fbaResult: FbaResult = {
