@@ -40,6 +40,9 @@ import { ChildProcess } from 'child_process'
 import path from 'path'
 import { sleep } from './util.js'
 import { gfmTableToMarkdown } from 'mdast-util-gfm-table'
+import { satisfies } from 'semver'
+
+const MIN_ADLT_VERSION_SEMVER_RANGE = '>=0.61.0' // 0.61.0 needed for one_pass_streams support
 
 const error = chalk.bold.red
 const warning = chalk.bold.yellow
@@ -105,8 +108,8 @@ export const cmdExec = async (files: string[], options: any) => {
     const barMsgsLoadedOptions = {
       format: '                                    {duration_formatted} | {total} msgs read',
     }
-    const barMsgsLoaded = multibar.create(0, 0, {}, barMsgsLoadedOptions)
     const barFbas = multibar.create(fbaFiles.length, 0)
+    const barMsgsLoaded = multibar.create(0, 0, {}, barMsgsLoadedOptions)
     const barQueries = multibar.create(0, 0, { file: 'queries' })
 
     const fileBasedMsgsHandler: FileBasedMsgsHandler = (msg: MsgType) => {
@@ -175,11 +178,19 @@ export const cmdExec = async (files: string[], options: any) => {
     adltClient
       .connectToWebSocket(`ws://${adltWssPort}`)
       .then(async (adltVersion) => {
+        if (!satisfies(adltVersion, MIN_ADLT_VERSION_SEMVER_RANGE)) {
+          multibar.log(`adlt version not fitting. Have ${adltVersion}! Needs ${MIN_ADLT_VERSION_SEMVER_RANGE}\n`)
+          multibar.update()
+          console.log(error(`adlt version not fitting. Have ${adltVersion}! Needs ${MIN_ADLT_VERSION_SEMVER_RANGE}`))
+          throw new Error(`adlt version not fitting. Have ${adltVersion}! Needs ${MIN_ADLT_VERSION_SEMVER_RANGE}`)
+        }
         //multibar.log(`Connected to adlt...\n`)
         barAdlt.increment(1, { file: 'adlt connected' })
         // open files
         await adltClient
-          .sendAndRecvAdltMsg(`open {"sort":${sortOrderByTime},"files":${JSON.stringify(nonFbaFiles)},"plugins":${pluginCfgs}}`)
+          .sendAndRecvAdltMsg(
+            `open {"collect":"one_pass_streams", "sort":${sortOrderByTime},"files":${JSON.stringify(nonFbaFiles)},"plugins":${pluginCfgs}}`,
+          )
           .then(async (response) => {
             report = {
               type: 'FbaExecReport',
@@ -195,19 +206,10 @@ export const cmdExec = async (files: string[], options: any) => {
             // todo check response
             // multibar.log(`Opened files...\n`)
             barAdlt.increment(1, { file: 'adlt files opened' })
-            // load dlt files
-            multibar.log(`Processing DLT files...\n`)
-            // wait until all msgs are loaded (max 1h...)
-            for (let i = 0; i < 3600; i++) {
-              await sleep(1000)
-              if (totalNrOfMsgs !== undefined) {
-                break
-              }
-            }
-            barAdlt.increment(1, { file: `adlt finished file processing` })
-            multibar.log(`Processing fba files for ${totalNrOfMsgs ? numberFormat.format(totalNrOfMsgs) : 0} msgs...\n`)
+            multibar.log(`Processing fba files...\n`)
             multibar.update()
-            // exec the fba files
+            // exec the fba files (e.g. create/prepare all promises/queries...)
+            const pending_promises: Promise<void>[] = []
             for (const fbaFile of fbaFiles) {
               const fbaResult: FbaResult = {
                 type: 'FbaResult',
@@ -227,15 +229,35 @@ export const cmdExec = async (files: string[], options: any) => {
               }).then(
                 async function (promises): Promise<void> {
                   //barFbas.increment(nrOfFbas)
+                  pending_promises.push(...promises)
                   barQueries.setTotal(barQueries.getTotal() + promises.length)
-                  await Promise.allSettled(promises).then((results) => {
-                    barQueries.increment(results.length)
-                  })
                 },
                 (e): void => {
                   multibar.log(error(`Failed to process fba file:'${fbaFile}'! Got error:${e}`))
                 },
               )
+            }
+
+            // now unpause the adlt client to start processing the queries
+            if (pending_promises.length > 0) {
+              await adltClient.sendAndRecvAdltMsg(`resume`).then(async (response) => {
+                multibar.log(`Processing DLT files with ${pending_promises.length} queries...\n`)
+
+                // todo wait for all msgs being processed?
+                // wait until all msgs are loaded (max 1h...)
+                for (let i = 0; i < 3600; i++) {
+                  await sleep(1000)
+                  if (totalNrOfMsgs !== undefined) {
+                    break
+                  }
+                }
+                barAdlt.increment(1, { file: `adlt finished file processing` })
+
+                // wait for all promises to finish
+                await Promise.allSettled(pending_promises).then((results) => {
+                  barQueries.increment(results.length)
+                })
+              })
             }
           })
           .catch((e) => {
@@ -605,10 +627,11 @@ const processFbaFile = async (
 ): Promise<Promise<void>[]> => {
   // try to open the file:
   return new Promise<Promise<void>[]>((resolve, reject) => {
-    fs.readFile(filePath, 'utf-8', (err, fbaFileContent) => {
+    const fileAsPath = path.resolve(filePath)
+    fs.readFile(fileAsPath, 'utf-8', (err, fbaFileContent) => {
       if (err) {
         // console.log(error(`Failed to read fba file:'${filePath}'! Got error:${err}`))
-        fbaResult.data.errors.push(`Failed to read fba file due to: ${err}`)
+        fbaResult.data.errors.push(`Failed to read fba file '${filePath}' ('${fileAsPath.toString()}') due to: ${err}`)
         reject(err)
         return
       }
