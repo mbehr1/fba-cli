@@ -486,7 +486,7 @@ export class AdltRemoteClient {
           .filter((f) => ('enabled' in f ? f.enabled : true))
           .map((f) => JSON.stringify({ ...f, enabled: true }))
           .join(',')
-        this.sendAndRecvAdltMsg(`query {"window":[0,${maxMsgsToReturn}], "filters":[${filterStr}]}`)
+        this.sendAndRecvAdltMsg(`query {"one_pass":true, "window":[0,${maxMsgsToReturn}], "filters":[${filterStr}]}`)
           .then((response) => {
             const streamObj = JSON.parse(response.substring(10))
 
