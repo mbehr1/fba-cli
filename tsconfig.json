@@ -12,7 +12,7 @@
   "exclude": [
     "node_modules",
     "jest.config.ts",
-    "jest.config.cts",
+    "jest.config.?ts",
     "src/**/*.spec.ts"
   ]
 }
