@@ -1,11 +1,18 @@
 /**
  * todos:
- * [] load all fba filters upfront and then stream adlt only so that no memory is kept
- * [] add glob support for files passed as arguments
- * [] add option to include matching messages in a collapsable section
- * [] support markdown description from fba instructions and backgroundDescription
- * [] add support for reports (either as html embedded or as non interactive pngs)
- * [] support junit xml output format
+ * [x] load all fba filters upfront and then stream adlt only so that no memory is kept
+ * [ ] sequence support
+ * [ ] seq: add lifecycle check support
+ * [x] seq: refactor so that a single message can fail the current one and start a new one
+ * [x] (done by isFinished = last mandatory step) seq: add order support (e.g. 2,3,1 should fail (and create a new one with 1))
+ * [x] seq: add order support (e.g. 2,1,2 should fail (and create a new one with 1,2))
+ * [x] (done by isFinished = last mandatory step seq: check about partial sequences (e.g. 3 steps, 2,3, 1,2,3 <- should lead to a partial seq and a new one)
+ * [ ] seq: add support for non sequential filters as well (so arrays of filters)
+ * [ ] add glob support for files passed as arguments
+ * [ ] add option to include matching messages in a collapsable section
+ * [ ] support markdown description from fba instructions and backgroundDescription
+ * [ ] add support for reports (either as html embedded or as non interactive pngs)
+ * [ ] support junit xml output format
  */
 import fs from 'fs'
 import os from 'os'
@@ -17,12 +24,11 @@ import { default as jp } from 'jsonpath'
 import chalk from 'chalk'
 import cli_progress_pkg from 'cli-progress'
 const { MultiBar, Format } = cli_progress_pkg
-import { AdltRemoteClient, DltFilter, FileBasedMsgsHandler, MsgType, getAdltProcessAndPort } from './adltRemoteClient.js'
+import { AdltRemoteClient, FileBasedMsgsHandler, MsgType, getAdltProcessAndPort } from './adltRemoteClient.js'
 import { FBBadge, FBEffect, FBFilter, getFBDataFromText, rqUriDecode } from './fbaFormat.js'
 import {
   FbCategoryResult,
   FbEffectResult,
-  FbEvent,
   FbRootCauseResult,
   FbaExecReport,
   FbaResult,
@@ -41,6 +47,7 @@ import path from 'path'
 import { sleep } from './util.js'
 import { gfmTableToMarkdown } from 'mdast-util-gfm-table'
 import { satisfies } from 'semver'
+import { DltFilter, FBSequence, FbEvent, FbSequenceResult, SeqChecker } from 'dlt-logs-utils/sequence'
 
 const MIN_ADLT_VERSION_SEMVER_RANGE = '>=0.61.0' // 0.61.0 needed for one_pass_streams support
 
@@ -427,7 +434,11 @@ const processFilter = async (filter: FBFilter, adltClient: AdltRemoteClient, rcR
   }
 }
 
-const processBadge = async (badge: FBBadge, adltClient: AdltRemoteClient, rcResult: { value: string | number | undefined }) => {
+const processBadge = async (
+  badge: FBBadge,
+  adltClient: AdltRemoteClient,
+  rcResult: { value: string | number | FbSequenceResult[] | undefined },
+) => {
   try {
     if (badge.conv && badge.source && typeof badge.source === 'string' && badge.source.startsWith('ext:mbehr1.dlt-logs/')) {
       const rq = rqUriDecode(badge.source)
@@ -508,6 +519,14 @@ const processBadge = async (badge: FBBadge, adltClient: AdltRemoteClient, rcResu
                 rcResult.value += `processBadge.msgs got error:${e}`
               }
             })
+          } else if (cmd.cmd === 'sequences') {
+            const sequences = JSON5.parse(cmd.param)
+            if (Array.isArray(sequences) && sequences.length > 0) {
+              processSequences(sequences, adltClient, rcResult)
+            } else {
+              console.warn(`rq.cmd=${cmd} ignored as no sequences provided!`)
+              rcResult.value = '<none>'
+            }
           } else {
             console.log(`rq.cmd=${cmd} ignored!`)
             rcResult.value = '<none>'
@@ -525,6 +544,55 @@ const processBadge = async (badge: FBBadge, adltClient: AdltRemoteClient, rcResu
     rcResult.value = `processBadge got error:${e}`
   }
 }
+
+const processSequences = async (
+  sequences: FBSequence[],
+  adltClient: AdltRemoteClient,
+  rcResult: { value: string | number | FbSequenceResult[] | undefined },
+) => {
+  try {
+    const seqResults: FbSequenceResult[] = []
+
+    // todo determine the dependecies between the sequences and process them in the right order
+    // for now we start by using only the order provided
+    // todo keep a map with sequence name to result value
+
+    for (const jsonSeq of sequences) {
+      // console.log(`processSequences: sequence('${jsonSeq.name}')=${JSON5.stringify(jsonSeq)}`)
+      const seqResult: FbSequenceResult = {
+        sequence: jsonSeq,
+        occurrences: [],
+        logs: [],
+      }
+      seqResults.push(seqResult)
+      const seqChecker = new SeqChecker(jsonSeq, seqResult, DltFilter)
+
+      // determine all filters to query from steps and failures:
+      const allFilters = seqChecker.getAllFilters()
+      if (allFilters.length === 0) {
+        console.warn(`processSequences: no filters found for sequence '${seqChecker.name}'`)
+        seqResult.logs.push(`no filters found for sequence '${seqChecker.name}'`)
+        continue
+      }
+      await adltClient.getMatchingMessages(allFilters, 1000).then((msgs) => {
+        // todo support more than 1000!
+        try {
+          seqResult.logs.push(`processed sequence '${seqChecker.name}' got ${msgs.length} msgs`)
+          seqChecker.processMsgs(msgs)
+        } catch (e) {
+          console.warn(`processSequences.msgs got error:${e}`)
+          seqResult.logs.push(`processSequences.msgs got error:${e}`)
+        }
+      })
+      // console.log(`processSequences: sequence('${seqChecker.name}') after await getMatchingMessages`)
+    }
+    rcResult.value = seqResults // todo wait for promises...
+  } catch (e) {
+    console.warn(`processSequences got error:${e}`)
+    rcResult.value = `processSequences got error:${e}`
+  }
+}
+
 
 function iterateFbEffects(
   fishbone: FBEffect[],
