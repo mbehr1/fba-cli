@@ -40,6 +40,8 @@ jobs:
         run: npm clean-install
       - name: Verify the integrity of provenance attestations and registry signatures for installed dependencies
         run: npm audit signatures
+      - name: Show versions
+        run: npm --version && node --version && npx --version && npx tsc --version
       - name: Build
         run: npm run build
       - name: Run test
