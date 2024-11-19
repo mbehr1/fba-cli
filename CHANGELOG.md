@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
 
+# [1.5.0](https://github.com/mbehr1/fba-cli/compare/v1.4.0...v1.5.0) (2024-11-19)
+
+
+### Features
+
+* **sequence:** first support for badges ([fdb3432](https://github.com/mbehr1/fba-cli/commit/fdb3432d287d668fb1f8d0beb117c796097505f4))
+
 # [1.4.0](https://github.com/mbehr1/fba-cli/compare/v1.3.1...v1.4.0) (2024-10-13)
 
 
