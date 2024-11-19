@@ -1,10 +1,10 @@
 import { Node, Parent, Literal } from 'unist'
 import { visit, CONTINUE, SKIP } from 'unist-util-visit'
-import { Root, TableCell, TableRow } from 'mdast'
+import { Html, Root, TableCell, TableRow } from 'mdast'
 import { is } from 'unist-util-is'
 import { default as JSON5 } from 'json5'
 import { version } from './util.js'
-import { DltLifecycleInfoMinIF } from './adltRemoteClient.js'
+import { DltLifecycleInfoMinIF, FbEvent, FbSequenceResult, seqResultToMdAst } from 'dlt-logs-utils/sequence'
 
 // our report type contains the info in a unist compliant AST
 // this can then be exported/transformed to markdown, html, junit, etc.
@@ -51,16 +51,6 @@ export interface FbCategoryResult extends Parent {
   children: (FbRootCauseResult | FbaResult)[]
 }
 
-export interface FbEvent {
-  evType: string
-  title: string
-  timeInMs?: number
-  timeStamp: number
-  lifecycle?: DltLifecycleInfoMinIF
-  summary?: string
-  msgText?: string
-}
-
 export interface FbRootCauseResult extends Literal {
   type: 'FbRootCauseResult'
   data: {
@@ -70,34 +60,66 @@ export interface FbRootCauseResult extends Literal {
     [key: string]: any
   }
   value: {
-    badge?: string | number
-    badge2?: string | number
+    badge?: string | number | FbSequenceResult[]
+    badge2?: string | number | FbSequenceResult[]
     events?: FbEvent[]
   }
 }
 
-export const hideBadgeValue = (value: string | number | undefined): boolean =>
-  value === undefined || (typeof value === 'string' && value.length === 0) || (typeof value === 'number' && value === 0)
+export const hideBadgeValue = (value: string | number | FbSequenceResult[] | undefined): boolean =>
+  value === undefined ||
+  (typeof value === 'string' && value.length === 0) ||
+  (typeof value === 'number' && value === 0) ||
+  (Array.isArray(value) && value.length === 0) // or if the occurrence arrays are empty?
 
-export const hideBadge2Value = (value: string | number | undefined): boolean => {
-  return value === undefined || (typeof value === 'string' && value.length === 0)
+export const hideBadge2Value = (value: string | number | FbSequenceResult[] | undefined): boolean => {
+  return value === undefined || (typeof value === 'string' && value.length === 0) || (Array.isArray(value) && value.length === 0)
 }
 
 export const hideEvents = (events: FbEvent[] | undefined): boolean => {
   return events === undefined || events.length === 0
 }
 
-const asTableCell = (text: string): TableCell => {
+const asTableCell = (text: string | Html): TableCell => {
   return {
     type: 'tableCell',
-    children: [{ type: 'text', value: text }],
+    children: [typeof text === 'string' ? { type: 'text', value: text } : text],
   }
 }
 
-const asTableRow = (cellTexts: string[]): TableRow => {
+const asTableRow = (cellTexts: (string | Html)[]): TableRow => {
   return {
     type: 'tableRow',
     children: cellTexts.map((text) => asTableCell(text)),
+  }
+}
+
+const asCollapsable = (summary: string, content: string): Html => {
+  return {
+    type: 'html',
+    value: `<details><summary>${summary}</summary><br>${content}</details>`,
+  }
+}
+
+const asHtmlTable = (headers: string[], rows: string[]): Html => {
+  return {
+    type: 'html',
+    value: `<table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows
+      .map((r) => `<tr>${r}</tr>`)
+      .join('')}</tbody></table>`,
+  }
+}
+
+const resAsEmoji = (res: string | undefined): string => {
+  switch (res) {
+    case 'ok':
+      return '✅'
+    case 'warning':
+      return '⚠️'
+    case 'error':
+      return '❌'
+    default:
+      return '❓'
   }
 }
 
@@ -119,32 +141,52 @@ export function fbReportToMdast(report: FbaExecReport): Root {
       })
       const badgeValue = rc.value.badge
       if (!hideBadgeValue(badgeValue)) {
-        reportAsMd.children.push({
-          type: 'paragraph',
-          children: [
-            { type: 'text', value: '🔴: ' }, // or only :warning:?
-            { type: 'html', value: '<mark> ' },
-            {
-              type: 'emphasis',
-              children: [
-                { type: 'text', value: "' " },
-                { type: 'text', value: rc.value.badge?.toString() || '' },
-                { type: 'text', value: " '" },
-              ],
-            },
-            { type: 'html', value: ' </mark>' },
-          ],
-        })
+        if (typeof badgeValue === 'string' || typeof badgeValue === 'number') {
+          reportAsMd.children.push({
+            type: 'paragraph',
+            children: [
+              { type: 'text', value: '🔴: ' }, // or only :warning:?
+              { type: 'html', value: '<mark> ' },
+              {
+                type: 'emphasis',
+                children: [
+                  { type: 'text', value: "' " },
+                  { type: 'text', value: rc.value.badge?.toString() || '' },
+                  { type: 'text', value: " '" },
+                ],
+              },
+              { type: 'html', value: ' </mark>' },
+            ],
+          })
+        } else {
+          if (Array.isArray(badgeValue)) {
+            const seqResults = badgeValue as FbSequenceResult[]
+            for (const seqResult of seqResults) {
+              const seqAsMd = seqResultToMdAst(seqResult)
+              reportAsMd.children.push(...seqAsMd)
+            }
+          }
+        }
       }
       const badge2Value = rc.value.badge2
       if (!hideBadge2Value(badge2Value)) {
-        reportAsMd.children.push({
-          type: 'paragraph',
-          children: [
-            { type: 'text', value: 'ℹ: ' }, // or emoji :information_source: ?
-            { type: 'text', value: rc.value.badge2?.toString() || '' },
-          ],
-        })
+        if (typeof badgeValue === 'string' || typeof badgeValue === 'number') {
+          reportAsMd.children.push({
+            type: 'paragraph',
+            children: [
+              { type: 'text', value: 'ℹ: ' }, // or emoji :information_source: ?
+              { type: 'text', value: rc.value.badge2?.toString() || '' },
+            ],
+          })
+        } else {
+          if (Array.isArray(badgeValue)) {
+            const seqResults = badgeValue as FbSequenceResult[]
+            for (const seqResult of seqResults) {
+              const seqAsMd = seqResultToMdAst(seqResult)
+              reportAsMd.children.push(...seqAsMd)
+            }
+          }
+        }
       }
       const events = rc.value.events
       if (!hideEvents(events)) {
