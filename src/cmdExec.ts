@@ -574,8 +574,8 @@ const processSequences = async (
         seqResult.logs.push(`no filters found for sequence '${seqChecker.name}'`)
         continue
       }
-      await adltClient.getMatchingMessages(allFilters, 1000).then((msgs) => {
-        // todo support more than 1000!
+      await adltClient.getMatchingMessages(allFilters, 1000000).then((msgs) => {
+        // todo think about better way to limit. for now 1mio msgs
         try {
           seqResult.logs.push(`processed sequence '${seqChecker.name}' got ${msgs.length} msgs`)
           seqChecker.processMsgs(msgs)
