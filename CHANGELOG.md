@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
 
+# [1.6.0](https://github.com/mbehr1/fba-cli/compare/v1.5.1...v1.6.0) (2024-11-23)
+
+
+### Features
+
+* **sequence:** add context support ([73a6528](https://github.com/mbehr1/fba-cli/commit/73a6528a2854c1f8a72374d5802a7cc245982143))
+
 ## [1.5.1](https://github.com/mbehr1/fba-cli/compare/v1.5.0...v1.5.1) (2024-11-20)
 
 
