@@ -1,6 +1,6 @@
 {
   "name": "fba-cli",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "A CLI (command line interface) to execute FBA (fishbone analysis) files with DLT-logs/adlt.",
   "repository": {
     "type": "git",
