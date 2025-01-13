@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
 
+## [1.6.4](https://github.com/mbehr1/fba-cli/compare/v1.6.3...v1.6.4) (2025-01-13)
+
+
+### Bug Fixes
+
+* **deps:** bump dlt-logs-utils ([de9afb1](https://github.com/mbehr1/fba-cli/commit/de9afb165aec4009eb864aabe49fb7945e2e2f46))
+
 ## [1.6.3](https://github.com/mbehr1/fba-cli/compare/v1.6.2...v1.6.3) (2025-01-07)
 
 
