@@ -1,6 +1,6 @@
 import { Node, Parent, Literal } from 'unist'
 import { visit, CONTINUE, SKIP } from 'unist-util-visit'
-import { Html, Root, TableCell, TableRow } from 'mdast'
+import { Html, Paragraph, Root, TableCell, TableRow } from 'mdast'
 import { is } from 'unist-util-is'
 import { default as JSON5 } from 'json5'
 import { version } from './util.js'
@@ -162,8 +162,12 @@ export function fbReportToMdast(report: FbaExecReport): Root {
           if (Array.isArray(badgeValue)) {
             const seqResults = badgeValue as FbSequenceResult[]
             for (const seqResult of seqResults) {
-              const seqAsMd = seqResultToMdAst(seqResult)
-              reportAsMd.children.push(...seqAsMd)
+              try {
+                const seqAsMd = seqResultToMdAst(seqResult)
+                reportAsMd.children.push(...seqAsMd)
+              } catch (e) {
+                reportAsMd.children.push(errorParagraph([`Error while processing sequence result: ${e}`]))
+              }
             }
           }
         }
@@ -182,8 +186,12 @@ export function fbReportToMdast(report: FbaExecReport): Root {
           if (Array.isArray(badgeValue)) {
             const seqResults = badgeValue as FbSequenceResult[]
             for (const seqResult of seqResults) {
-              const seqAsMd = seqResultToMdAst(seqResult)
-              reportAsMd.children.push(...seqAsMd)
+              try {
+                const seqAsMd = seqResultToMdAst(seqResult)
+                reportAsMd.children.push(...seqAsMd)
+              } catch (e) {
+                reportAsMd.children.push(errorParagraph([`Error while processing sequence result: ${e}`]))
+              }
             }
           }
         }
@@ -295,18 +303,7 @@ export function fbReportToMdast(report: FbaExecReport): Root {
         children: [{ type: 'text', value: `${isEmbedded ? 'embedded ' : ''}fishbone: '${rc.data.fbaTitle}'` }],
       })
       if (rc.data.errors.length) {
-        reportAsMd.children.push({
-          type: 'paragraph',
-          children: [
-            { type: 'text', value: `❌ ` },
-            {
-              type: 'emphasis',
-              children: rc.data.errors.map((e) => {
-                return { type: 'text', value: e }
-              }),
-            },
-          ],
-        })
+        reportAsMd.children.push(errorParagraph(rc.data.errors))
       }
       if (rc.data.fbaFileName) {
         reportAsMd.children.push({
@@ -432,4 +429,19 @@ export function fbReportToMdast(report: FbaExecReport): Root {
     return SKIP // if we reach here we dont know the node!
   })
   return reportAsMd
+}
+
+function errorParagraph(errors: string[]): Paragraph {
+  return {
+    type: 'paragraph',
+    children: [
+      { type: 'text', value: '❌ ' },
+      {
+        type: 'emphasis',
+        children: errors.map((e) => {
+          return { type: 'text', value: e }
+        }),
+      },
+    ],
+  }
 }
