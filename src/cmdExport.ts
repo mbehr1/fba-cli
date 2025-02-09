@@ -4,7 +4,7 @@ import chalk from 'chalk'
 import filenamify from 'filenamify'
 import { default as JSON5 } from 'json5'
 import JSZip from 'jszip'
-import { fragment, convert, create } from 'xmlbuilder2'
+import { fragment, create } from 'xmlbuilder2'
 
 import { FBEffect, Fishbone, getFBDataFromText, rqUriDecode } from './fbaFormat.js'
 import { XMLBuilder } from 'xmlbuilder2/lib/interfaces.js'
@@ -87,7 +87,7 @@ function exportToDltViewer(fba: Fishbone, zipFile: JSZip) {
   }
 }
 
-function pathNameFor(title: string, curSet: Set<String>, addToSet: boolean): string {
+function pathNameFor(title: string, curSet: Set<string>, addToSet: boolean): string {
   let titleName = filenamify(title, { replacement: '_' })
 
   // check if titleName is already in curSet:
@@ -179,7 +179,7 @@ function exportFilter(filter: any, zipFile: JSZip, dirs: string[]): number {
   }
   if (filter.startsWith('ext:mbehr1.dlt-logs/')) {
     try {
-      let exportedFilters: XMLBuilder[] = []
+      const exportedFilters: XMLBuilder[] = []
       const rq = rqUriDecode(filter)
       if (rq.path.endsWith('/filters?')) {
         if (rq.commands.length > 0) {
@@ -190,7 +190,7 @@ function exportFilter(filter: any, zipFile: JSZip, dirs: string[]): number {
                 try {
                   const params = command.cmd === 'add' ? [JSON5.parse(command.param)] : JSON5.parse(command.param)
                   if (Array.isArray(params) && params.length > 0 && params.every((e) => typeof e === 'object')) {
-                    let xmlFrags = params.map(exportFilterFrags).flat()
+                    const xmlFrags = params.map(exportFilterFrags).flat()
                     exportedFilters.push(...xmlFrags)
                   } else {
                     console.log(warning(`exporting filter: not array or empty! cmd:'${command.cmd}' params:'${params}'`))
@@ -219,7 +219,7 @@ function exportFilter(filter: any, zipFile: JSZip, dirs: string[]): number {
       if (exportedFilters.length > 0) {
         // console.log(green(`exported ${exportedFilters.length} filter...`))
         // console.log(green(`exporting filter: xml='${exportedFilters.map((p) => p.toString()).join(',')}'`))
-        let xml = create({ version: '1.0', encoding: 'UTF-8' }).ele('dltfilter')
+        const xml = create({ version: '1.0', encoding: 'UTF-8' }).ele('dltfilter')
         xml.com(`exported by fba-cli v${version()}`)
         for (const xmlFrag of exportedFilters) {
           xml.import(xmlFrag)

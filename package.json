@@ -14,8 +14,8 @@
   },
   "scripts": {
     "build_tsc_only": "tsc",
-    "build": "eslint src --ext .ts && tsc",
-    "lint": "eslint src --ext .ts",
+    "build": "eslint && tsc",
+    "lint": "eslint",
     "test": "vitest",
     "prepublish": "npm run build",
     "fba-cli": "npm run build && node dist/index.js"
@@ -143,9 +143,9 @@
     "@types/semver": "7.5.8",
     "@types/unist": "3.0.3",
     "@types/ws": "^8.5.14",
-    "@typescript-eslint/eslint-plugin": "^6.8.0",
-    "@typescript-eslint/parser": "^6.8.0",
-    "eslint": "^8.52.0",
+    "typescript-eslint": "^8.23.0",
+    "eslint": "^9.20.0",
+    "@eslint/js": "^9.20.0",
     "semantic-release": "^24.2.1",
     "ts-node": "^10.9.2",
     "typescript": "5.7.3",

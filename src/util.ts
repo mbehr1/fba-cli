@@ -5,7 +5,7 @@ let cachedVersion: string | undefined
 export function version(): string {
   // read version from package.json
   if (cachedVersion === undefined) {
-    let json: any | undefined
+    let json // : any | undefined
     try {
       // we're called from dist or src
       json = readFileSync(new URL('../package.json', import.meta.url), 'utf8')
@@ -14,9 +14,9 @@ export function version(): string {
       console.log(`version() readFileSync failed: ${e}`)
     }
     try {
-      const pkg = JSON.parse(json)
+      const pkg = JSON.parse(json || '')
       cachedVersion = pkg.version
-    } catch (e) {
+    } catch {
       cachedVersion = 'unknown'
     }
   }
@@ -48,30 +48,7 @@ export function sleep(ms: number): Promise<void> {
   })
 }
 
-export function containsRegexChars(text: String): boolean {
+export function containsRegexChars(text: string): boolean {
+  // eslint-disable-next-line no-useless-escape
   return text.match(/[\^\$\*\+\?\(\)\[\]\{\}\|\.\-\\\=\!\<\>\,]/g) !== null
-  /*
-   s.contains(|c| {
-        c == '^'
-            || c == '$'
-            || c == '*'
-            || c == '+'
-            || c == '?'
-            || c == '('
-            || c == ')'
-            || c == '['
-            || c == ']'
-            || c == '{'
-            || c == '}'
-            || c == '|'
-            || c == '.'
-            || c == '-'
-            || c == '\\'
-            || c == '='
-            || c == '!'
-            || c == '<'
-            || c == '>'
-            || c == ','
-    })
-  */
 }

@@ -39,8 +39,7 @@ try {
     .action(cmdExport)
 
   program.parse()
-  const options = program.opts()
-
+  //const options = program.opts()
   // console.log('options:', options)
 } catch (e) {
   console.error(`got error:${e}`)

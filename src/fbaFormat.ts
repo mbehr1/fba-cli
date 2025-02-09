@@ -387,14 +387,12 @@ export function getFBDataFromText(text: string): Fishbone {
                 break
               case 'sw':
                 keyObj.dataProvider = {
-                  // eslint-disable-next-line no-template-curly-in-string
                   source: `ext:mbehr1.dlt-logs/get/docs/0/ecus?ecu=${encodeURIComponent('"${attributes.ecu}"')}`,
                   jsonPath: '$.data[*].attributes.sws[*]',
                 }
                 break
               case 'lifecycles':
                 keyObj.dataProvider = {
-                  // eslint-disable-next-line no-template-curly-in-string
                   source: `ext:mbehr1.dlt-logs/get/docs/0/ecus?ecu=${encodeURIComponent('"${attributes.ecu}"')}`,
                   jsonPath: '$.data[*].attributes.lifecycles[*].attributes',
                 }
@@ -451,7 +449,7 @@ export function getFBDataFromText(text: string): Fishbone {
   if (yamlObj?.version === '0.6') {
     //console.warn(`FBAEditorProvider converting from v0.6 to v0.7 ...`)
     try {
-      iterateAllFBElements(yamlObj.fishbone, [], (type, elem, parent) => {
+      iterateAllFBElements(yamlObj.fishbone, [], (_type, elem, _parent) => {
         if (typeof elem !== 'object') {
           // some rcs are just strings
           return

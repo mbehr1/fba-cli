@@ -94,6 +94,7 @@ const asTableRow = (cellTexts: (string | Html)[]): TableRow => {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const asCollapsable = (summary: string, content: string): Html => {
   return {
     type: 'html',
@@ -101,6 +102,7 @@ const asCollapsable = (summary: string, content: string): Html => {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const asHtmlTable = (headers: string[], rows: string[]): Html => {
   return {
     type: 'html',
@@ -110,6 +112,7 @@ const asHtmlTable = (headers: string[], rows: string[]): Html => {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const resAsEmoji = (res: string | undefined): string => {
   switch (res) {
     case 'ok':
@@ -383,7 +386,7 @@ export function fbReportToMdast(report: FbaExecReport): Root {
       })
       if (rc.data.lifecycles.length) {
         const lifecycles = rc.data.lifecycles
-        const lcsAsTableRows: TableRow[] = lifecycles.map((lc, idx) => {
+        const lcsAsTableRows: TableRow[] = lifecycles.map((lc, _idx) => {
           return asTableRow([
             lc.persistentId.toString(),
             lc.ecu,
