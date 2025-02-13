@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
 
+## [1.6.5](https://github.com/mbehr1/fba-cli/compare/v1.6.4...v1.6.5) (2025-02-13)
+
+
+### Bug Fixes
+
+* **exec:** handle sequence conversion errors ([3651448](https://github.com/mbehr1/fba-cli/commit/3651448f6d42329c1ec7f7957378d800c38d61ce))
+
 ## [1.6.4](https://github.com/mbehr1/fba-cli/compare/v1.6.3...v1.6.4) (2025-01-13)
 
 
