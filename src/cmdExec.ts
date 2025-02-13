@@ -54,7 +54,7 @@ const MIN_ADLT_VERSION_SEMVER_RANGE = '>=0.61.0' // 0.61.0 needed for one_pass_s
 const error = chalk.bold.red
 const warning = chalk.bold.yellow
 
-const numberFormat = new Intl.NumberFormat('de-DE', { style: 'decimal', maximumFractionDigits: 0 })
+// const numberFormat = new Intl.NumberFormat('de-DE', { style: 'decimal', maximumFractionDigits: 0 })
 
 export const cmdExec = async (files: string[], options: any) => {
   // console.log('cmdExec', files, options)
@@ -123,17 +123,21 @@ export const cmdExec = async (files: string[], options: any) => {
       try {
         switch (msg.tag) {
           case 'FileInfo':
-            const fi = msg.value
-            // receiving twice the same value indicates processing finished
-            if (fi.nr_msgs === barMsgsLoaded.getTotal()) {
-              totalNrOfMsgs = fi.nr_msgs
-            } else {
-              barMsgsLoaded.setTotal(fi.nr_msgs)
+            {
+              const fi = msg.value
+              // receiving twice the same value indicates processing finished
+              if (fi.nr_msgs === barMsgsLoaded.getTotal()) {
+                totalNrOfMsgs = fi.nr_msgs
+              } else {
+                barMsgsLoaded.setTotal(fi.nr_msgs)
+              }
             }
             break
           case 'Lifecycles':
-            const li = msg.value
-            //multibar.log(`Got ${li.length} lifecycles ${char4U32LeToString(li[0]?.ecu || 0)}\n`)
+            {
+              // const li = msg.value
+              //multibar.log(`Got ${li.length} lifecycles ${char4U32LeToString(li[0]?.ecu || 0)}\n`)
+            }
             break
           case 'Progress': // todo show it? (e.g. during extraction of archives)
             break
@@ -210,7 +214,12 @@ export const cmdExec = async (files: string[], options: any) => {
               },
               children: [],
             }
-            // todo check response
+            if (!response.startsWith('ok:')) {
+              multibar.log(`Failed to open DLT files! Got response: '${response}'\n`)
+              multibar.update()
+              console.log(error(`Failed to open DLT files! Got response:${response}`))
+              return
+            }
             // multibar.log(`Opened files...\n`)
             barAdlt.increment(1, { file: 'adlt files opened' })
             multibar.log(`Processing fba files...\n`)
@@ -248,6 +257,12 @@ export const cmdExec = async (files: string[], options: any) => {
             // now unpause the adlt client to start processing the queries
             if (pending_promises.length > 0) {
               await adltClient.sendAndRecvAdltMsg(`resume`).then(async (response) => {
+                if (!response.startsWith('ok:')) {
+                  multibar.log(`Failed to resume adlt! Got response: '${response}'\n`)
+                  multibar.update()
+                  console.log(error(`Failed to resume adlt! Got response:${response}`))
+                  return
+                }
                 multibar.log(`Processing DLT files with ${pending_promises.length} queries...\n`)
 
                 // todo wait for all msgs being processed?
@@ -288,7 +303,7 @@ export const cmdExec = async (files: string[], options: any) => {
           multibar.log(`Generating report...\n`)
           multibar.update()
           // update lifecycle summary
-          report.data.lifecycles = Array.from(adltClient.lifecyclesByPersistentId).map(([persistentId, lifecycle]) => lifecycle)
+          report.data.lifecycles = Array.from(adltClient.lifecyclesByPersistentId).map(([_persistentId, lifecycle]) => lifecycle)
 
           //console.log(JSON.stringify(report, null, 2)) // use unist-util-inspect
           // console.log(`report is=${is(report, 'FbaExecReport')}`)
@@ -331,6 +346,7 @@ function objectMember<T>(obj: any, key: string): { value: T } {
   }
 }
 
+// eslint-disable-next-line no-useless-escape
 const EVENT_FILTER_REGEXP = /\?\<EVENT_([a-zA-Z0-9]+?)_(.+?)\>/ // todo might weaken to EVENT_*_* as well if convFunction allowed/supported
 
 const isEventFilter = (filter: any): boolean => {
@@ -361,62 +377,64 @@ const processFilter = async (filter: FBFilter, adltClient: AdltRemoteClient, rcR
             case 'deleteAll':
               break // ignore
             case 'report':
-              // for reports we use only the event filters
-              // that captures with group name "EVENT_.+_.+" (EVENT_<type>_<title>)
+              {
+                // for reports we use only the event filters
+                // that captures with group name "EVENT_.+_.+" (EVENT_<type>_<title>)
 
-              //console.log(`got filter cmd.report: ${JSON5.stringify(cmd.param.length)}`)
-              const params = JSON5.parse(cmd.param)
-              if (Array.isArray(params)) {
-                //console.log(` cmd.report params: ${JSON5.stringify(params)}`)
-                const eventFilters: any[] = []
-                for (const filter of params) {
-                  if (isEventFilter(filter)) {
-                    //console.log(` cmd.report event filter: ${JSON5.stringify(filter, (key, value) => key==='reportOptions' ? undefined: value)}`)
-                    eventFilters.push(filter)
+                //console.log(`got filter cmd.report: ${JSON5.stringify(cmd.param.length)}`)
+                const params = JSON5.parse(cmd.param)
+                if (Array.isArray(params)) {
+                  //console.log(` cmd.report params: ${JSON5.stringify(params)}`)
+                  const eventFilters: any[] = []
+                  for (const filter of params) {
+                    if (isEventFilter(filter)) {
+                      //console.log(` cmd.report event filter: ${JSON5.stringify(filter, (key, value) => key==='reportOptions' ? undefined: value)}`)
+                      eventFilters.push(filter)
+                    }
                   }
-                }
-                if (eventFilters.length > 0) {
-                  await adltClient.getMatchingMessages(eventFilters, 1000).then((msgs) => {
-                    // TODO: limit 1000???
-                    try {
-                      if (msgs.length > 0) {
-                        const dltFilters = eventFilters.map((fObj) => new DltFilter(fObj))
-                        // check which message matched and create an event with attributes: type, title, summary, ...
-                        const events: FbEvent[] = []
-                        for (const msg of msgs) {
-                          const filter = dltFilters.find((filter) => filter.matches(msg))
-                          if (filter !== undefined) {
-                            const matches = filter.payloadRegex?.exec(msg.payloadString)
-                            if (matches && matches.length > 0 && matches.groups) {
-                              for (const group of Object.keys(matches.groups)) {
-                                const groupMatch = EVENT_FILTER_REGEXP.exec(`?<${group}>`)
-                                if (groupMatch) {
-                                  const event: FbEvent = {
-                                    evType: groupMatch[1],
-                                    title: groupMatch[2],
-                                    timeInMs: msg.receptionTimeInMs,
-                                    // keep empty as we use the lifecycle time: msg.lifecycle? msg.lifecycle.lifecycleStart+msg.timeStamp
-                                    timeStamp: msg.timeStamp,
-                                    lifecycle: msg.lifecycle,
-                                    summary: matches.groups[group],
-                                    msgText: `\#${msg.index} ${msg.timeStamp / 10000}s ${msg.ecu} ${msg.apid} ${msg.ctid} ${
-                                      msg.payloadString
-                                    }`,
+                  if (eventFilters.length > 0) {
+                    await adltClient.getMatchingMessages(eventFilters, 1000).then((msgs) => {
+                      // TODO: limit 1000???
+                      try {
+                        if (msgs.length > 0) {
+                          const dltFilters = eventFilters.map((fObj) => new DltFilter(fObj))
+                          // check which message matched and create an event with attributes: type, title, summary, ...
+                          const events: FbEvent[] = []
+                          for (const msg of msgs) {
+                            const filter = dltFilters.find((filter) => filter.matches(msg))
+                            if (filter !== undefined) {
+                              const matches = filter.payloadRegex?.exec(msg.payloadString)
+                              if (matches && matches.length > 0 && matches.groups) {
+                                for (const group of Object.keys(matches.groups)) {
+                                  const groupMatch = EVENT_FILTER_REGEXP.exec(`?<${group}>`)
+                                  if (groupMatch) {
+                                    const event: FbEvent = {
+                                      evType: groupMatch[1],
+                                      title: groupMatch[2],
+                                      timeInMs: msg.receptionTimeInMs,
+                                      // keep empty as we use the lifecycle time: msg.lifecycle? msg.lifecycle.lifecycleStart+msg.timeStamp
+                                      timeStamp: msg.timeStamp,
+                                      lifecycle: msg.lifecycle,
+                                      summary: matches.groups[group],
+                                      msgText: `#${msg.index} ${msg.timeStamp / 10000}s ${msg.ecu} ${msg.apid} ${msg.ctid} ${
+                                        msg.payloadString
+                                      }`,
+                                    }
+                                    events.push(event)
                                   }
-                                  events.push(event)
                                 }
                               }
                             }
                           }
+                          //console.log(`processFilter.msgs got msgs:${msgs.length}`)
+                          rcResult.value = events
                         }
-                        //console.log(`processFilter.msgs got msgs:${msgs.length}`)
-                        rcResult.value = events
+                      } catch (e) {
+                        console.log(warning(`processFilter.msgs got error:${e}`))
+                        // todo: where to return errors? rcResult.value = [`processFilter.msgs got error:${e}`]
                       }
-                    } catch (e) {
-                      console.log(warning(`processFilter.msgs got error:${e}`))
-                      // todo: where to return errors? rcResult.value = [`processFilter.msgs got error:${e}`]
-                    }
-                  })
+                    })
+                  }
                 }
               }
               break

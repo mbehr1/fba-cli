@@ -16,7 +16,7 @@ Execution performs:
 
 Preconditions:
 - Installed `adlt` and available in path. Check in terminal/console e.g. via `adlt --version`
-- `node.js` v18 or higher installed. Check via `node --version`
+- `node.js` v22 or higher installed. Check via `node --version`
 - Install fba-cli via `npm install fba-cli -g`
 - If adlt plugins shall be used a config file in json/jsonc/json5 format with
 <details>
