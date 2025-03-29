@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
 
+# [1.7.0](https://github.com/mbehr1/fba-cli/compare/v1.6.8...v1.7.0) (2025-03-29)
+
+
+### Features
+
+* **exec:** add option to write report to file ([caa4261](https://github.com/mbehr1/fba-cli/commit/caa42614880db48293ef07942966ecb77f32b9bb))
+
 ## [1.6.8](https://github.com/mbehr1/fba-cli/compare/v1.6.7...v1.6.8) (2025-03-29)
 
 ## [1.6.7](https://github.com/mbehr1/fba-cli/compare/v1.6.6...v1.6.7) (2025-03-02)
