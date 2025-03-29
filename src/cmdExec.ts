@@ -321,7 +321,21 @@ export const cmdExec = async (files: string[], options: any) => {
             const reportAsMd = fbReportToMdast(report)
             try {
               mdassert(reportAsMd)
-              console.log(toMarkdown(reportAsMd, { extensions: [gfmTableToMarkdown({ tablePipeAlign: false })] }))
+              const reportAsMdText = toMarkdown(reportAsMd, { extensions: [gfmTableToMarkdown({ tablePipeAlign: false })] })
+              if (!options.output) {
+                console.log(reportAsMdText)
+              }else{
+                try{
+                  // write an UTF8 BOM so that editors can easier detect the encoding:
+                  fs.writeFileSync(options.output, '\ufeff')
+                  fs.writeFileSync(options.output, reportAsMdText)
+                  multibar.log(`Report written to '${options.output}'\n`)
+                }catch(e){
+                  multibar.log(`Failed to write report to '${options.output}'! Got error:${e}\n`)
+                  console.log(error(`Failed to write report to '${options.output}'! Got error:${e}`))
+                }
+                multibar.update()
+              }
             } catch (e) {
               console.log(inspect(reportAsMd))
               console.warn(`reportAsMd got error:${e}`)
