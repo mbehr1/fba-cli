@@ -81,6 +81,20 @@ and then use `fba-cli`:
 fba-cli exec -p 127.0.0.1:7777 -c config.json analysis.fba recorded.dlt recorded_p2.dlt > analysis_report.md
 ```
 
+### Hint for Windows Powershell users
+
+Powershell seems to default to utf-16 and not utf-8. If you redirect the output to a file you do need to change the encoding first:
+
+```powershell
+$OutputEncoding = [Console]::InputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+
+# fba-cli exec -p host:port -c <config_file> <list of fba files> <list of DLT files>
+# e.g.
+npm.cmd run fba-cli exec -p 127.0.0.1:7777 -c config.json analysis.fba recorded.dlt recorded_p2.dlt > analysis_report.md
+# seems that powershell doesnt allow the binary/scripts to be directly executed. In that case you can start via:
+node dist\index.js exec -p 127.0.0.1:7777 -c config.json analysis.fba recorded.dlt > analysis_report.md
+```
+
 ### Export filters in DLT-Viewer format:
 
 ```bash
