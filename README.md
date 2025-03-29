@@ -95,6 +95,17 @@ npm.cmd run fba-cli exec -p 127.0.0.1:7777 -c config.json analysis.fba recorded.
 node dist\index.js exec -p 127.0.0.1:7777 -c config.json analysis.fba recorded.dlt > analysis_report.md
 ```
 
+alternatively you can use the `-o` option to write the output file directly:
+
+```powershell
+
+# fba-cli exec -p host:port -c <config_file> -o <output_file> <list of fba files> <list of DLT files>
+# e.g.
+npm.cmd run fba-cli exec -p 127.0.0.1:7777 -c config.json -o analysis_report.md analysis.fba recorded.dlt recorded_p2.dlt
+# seems that powershell doesnt allow the binary/scripts to be directly executed. In that case you can start via:
+node dist\index.js exec -p 127.0.0.1:7777 -c config.json -o analysis_report.md analysis.fba recorded.dlt
+```
+
 ### Export filters in DLT-Viewer format:
 
 ```bash
