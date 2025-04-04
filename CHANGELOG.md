@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
 
+# [1.8.0](https://github.com/mbehr1/fba-cli/compare/v1.7.0...v1.8.0) (2025-04-04)
+
+
+### Features
+
+* **sequences:** support attributes ([adb7dcd](https://github.com/mbehr1/fba-cli/commit/adb7dcdd4a90a6a1094a96b43741a802b44b59e2))
+
 # [1.7.0](https://github.com/mbehr1/fba-cli/compare/v1.6.8...v1.7.0) (2025-03-29)
 
 
