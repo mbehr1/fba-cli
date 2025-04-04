@@ -25,7 +25,7 @@ import chalk from 'chalk'
 import cli_progress_pkg from 'cli-progress'
 const { MultiBar, Format } = cli_progress_pkg
 import { AdltRemoteClient, FileBasedMsgsHandler, MsgType, getAdltProcessAndPort } from './adltRemoteClient.js'
-import { FBBadge, FBEffect, FBFilter, getFBDataFromText, rqUriDecode } from './fbaFormat.js'
+import { FBAttribute, FBBadge, FBFilter, Fishbone, getFBDataFromText, rqUriDecode } from './fbaFormat.js'
 import {
   FbCategoryResult,
   FbEffectResult,
@@ -377,11 +377,12 @@ const isEventFilter = (filter: any): boolean => {
   return false
 }
 
-const processFilter = async (filter: FBFilter, adltClient: AdltRemoteClient, rcResult: { value: FbEvent[] | undefined }) => {
+const processFilter = async (filter: FBFilter, getAttr: (attr:string)=>AttributesValue, adltClient: AdltRemoteClient, rcResult: { value: FbEvent[] | undefined }) => {
   try {
     if (filter.source && typeof filter.source === 'string' && filter.source.startsWith('ext:mbehr1.dlt-logs/')) {
       const rq = rqUriDecode(filter.source)
       if (rq.path.endsWith('/filters?')) {
+        substAttributes(rq, getAttr)
         // console.log(`got filter: ${JSON5.stringify(rq.commands.map((command)=>command.cmd))}`)
         for (const cmd of rq.commands) {
           switch (cmd.cmd) {
@@ -466,8 +467,57 @@ const processFilter = async (filter: FBFilter, adltClient: AdltRemoteClient, rcR
   }
 }
 
+// TODO refactor to dlt-logs-utils
+
+/**
+ * Replace any ${attributes.<attribute>} with the value of the attribute inplace
+ * @param rq 
+ * @param getAttr 
+ */
+const substAttributes = (rq: any, getAttr: (attr:string)=>AttributesValue) => {
+  for (const cmd of rq.commands) {
+    switch (cmd.cmd) {
+      case 'report':
+      case 'query':
+        {
+          const param = JSON5.parse(cmd.param)
+          if (Array.isArray(param)) {
+            const doChange = substFilterAttributes(param, getAttr)
+            if (doChange) {
+              cmd.param = JSON.stringify(param)
+            }
+          }
+        }
+        break
+    }
+  }
+}
+
+const substFilterAttributes = (filters:any[], getAttr: (attr:string)=>AttributesValue) => {
+  let didChange = false
+  for (const filter of filters) {
+    Object.keys(filter).forEach((key) => {
+      if (typeof filter[key] === 'string' && filter[key].startsWith('${attributes.')) {
+        // console.warn(`performRestQuery: got key: '${key}' with attribute '${filter[key]}'`)
+        const attribute = filter[key].slice(13, -1) // remove ${attributes. and }
+        const attrVal = getAttr(attribute)
+        // console.log(error(`substFilterAttributes: got attribute '${attribute}' with value: ${JSON.stringify(attrVal)}\n`))
+        if (attrVal !== undefined) {
+          filter[key] = attrVal
+        } else {
+          // remove key:
+          delete filter[key]
+        }
+        didChange = true
+      }
+    })
+  }
+  return didChange
+}
+
 const processBadge = async (
   badge: FBBadge,
+  getAttr:(attr: string)=> AttributesValue,
   adltClient: AdltRemoteClient,
   rcResult: { value: string | number | FbSequenceResult[] | undefined },
 ) => {
@@ -477,6 +527,7 @@ const processBadge = async (
       // console.log(`rqCmd.path=${rqCmd.path}`)
       if (rq.path.endsWith('/filters?')) {
         //console.log(`rq.commands=${JSON.stringify(rq.commands)}`)
+        substAttributes(rq, getAttr)
         for (const cmd of rq.commands) {
           rcResult.value = undefined
           if (cmd.cmd === 'query') {
@@ -554,7 +605,7 @@ const processBadge = async (
           } else if (cmd.cmd === 'sequences') {
             const sequences = JSON5.parse(cmd.param)
             if (Array.isArray(sequences) && sequences.length > 0) {
-              processSequences(sequences, adltClient, rcResult)
+              processSequences(sequences, getAttr, adltClient, rcResult)
             } else {
               console.warn(`rq.cmd=${cmd} ignored as no sequences provided!`)
               rcResult.value = '<none>'
@@ -579,6 +630,7 @@ const processBadge = async (
 
 const processSequences = async (
   sequences: FBSequence[],
+  getAttr:(attr: string)=> AttributesValue,
   adltClient: AdltRemoteClient,
   rcResult: { value: string | number | FbSequenceResult[] | undefined },
 ) => {
@@ -606,6 +658,7 @@ const processSequences = async (
         seqResult.logs.push(`no filters found for sequence '${seqChecker.name}'`)
         continue
       }
+      substFilterAttributes(allFilters, getAttr) // does it inplace
       await adltClient.getMatchingMessages(allFilters, 1000000).then((msgs) => {
         // todo think about better way to limit. for now 1mio msgs
         try {
@@ -625,15 +678,92 @@ const processSequences = async (
   }
 }
 
+// TODO refactor to dlt-logs-utils
+type AttributesValue = string|number|(string|number)[] | undefined
+
+const attrCacheCache = new Map<FBAttribute[], Map<string, AttributesValue>>()
+// const attrCache = new Map<string, string | number | (string | number)[] | undefined>()
+const getAttribute = (fbaAttrs:FBAttribute[], attribute: string): AttributesValue => {
+      // check if we already have the attribute in the cache
+      let attrCache = attrCacheCache.get(fbaAttrs)
+      if (attrCache=== undefined){
+        attrCache = new Map<string, AttributesValue>()
+        attrCacheCache.set(fbaAttrs, attrCache)
+      }
+
+      if (attrCache.has(attribute)) {
+        return attrCache.get(attribute)
+      }
+
+      if (Array.isArray(fbaAttrs)) {
+        // iterate over all attributes and check if the attribute is in there
+        // it can be attributename.member e.g. lifecycles.id or attributename like ecu
+        // the attribute value can be a single string/value or an array with string/values
+        // for ecu usually value is just a single member (string)
+        // for lifecycles value is an array of objects with id (number), label,...
+        const [attrName, attrMember] = attribute.split('.')
+
+        for (const attr of fbaAttrs) {
+          if (typeof attr === 'object' && attrName in attr) {
+            // check if the attribute is in the object
+            const attrNameObj = attr[attrName]
+            const attrVal = attrNameObj && typeof attrNameObj === 'object' && attrNameObj?.value
+            if (attrVal === undefined) {
+              attrCache.set(attribute, attrVal)
+              return undefined
+            }
+            if (attrMember) {
+              // check if the attribute is in the object/array
+              if (Array.isArray(attrVal)) {
+                // check if the attribute is in the array
+                if (attrVal.length === 0) {
+                  attrCache.set(attribute, attrVal as (string | number)[])
+                  return attrVal
+                }
+
+                const attrMemberVals = attrVal.map((e: any) => e[attrMember])
+                const toRet =
+                  attrMemberVals.length > 0
+                    ? typeof attrMemberVals[0] === 'string' || typeof attrMemberVals[0] === 'number'
+                      ? (attrMemberVals as (string | number)[])
+                      : undefined
+                    : []
+                attrCache.set(attribute, toRet)
+                return toRet
+              } else {
+                const toRet = typeof attrVal[0] === 'string' || typeof attrVal[0] === 'number' ? (attrVal as (string | number)[]) : []
+                attrCache.set(attribute, toRet)
+                return toRet
+              }
+            } else {
+              let toRet
+              if (Array.isArray(attrVal)) {
+                toRet =
+                  attrVal.length > 0
+                    ? typeof attrVal[0] === 'string' || typeof attrVal[0] === 'number'
+                      ? (attrVal as (string | number)[])
+                      : undefined
+                    : []
+              } else {
+                toRet = typeof attrVal === 'string' || typeof attrVal === 'number' ? attrVal : undefined
+              }
+              attrCache.set(attribute, toRet)
+              return toRet
+            }
+          }
+        }
+      }
+      return undefined
+    }
 
 function iterateFbEffects(
-  fishbone: FBEffect[],
+  fba: Fishbone,
   fbaResult: FbaResult,
   adltClient: AdltRemoteClient,
   options: { processBadge1: boolean; processBadge2: boolean; processsEvents: boolean },
 ) {
   const promises: Promise<void>[] = []
-  for (const effect of fishbone) {
+  for (const effect of fba.fishbone) {
     const effectResult: FbEffectResult = {
       type: 'FbEffectResult',
       data: { ...effect },
@@ -641,6 +771,10 @@ function iterateFbEffects(
     }
     delete effectResult.data.categories
     delete effectResult.data.fbUid
+
+    const getAttr = (attr: string): AttributesValue => {
+      return getAttribute(fba.attributes, attr) 
+    }
 
     if (effect?.categories?.length) {
       for (const category of effect.categories) {
@@ -682,13 +816,13 @@ function iterateFbEffects(
 
               categoryResult.children.push(rcResult)
               if (options.processBadge1 && rc.props.badge) {
-                promises.push(processBadge(rc.props.badge, adltClient, objectMember(rcResult.value, 'badge')))
+                promises.push(processBadge(rc.props.badge, getAttr, adltClient, objectMember(rcResult.value, 'badge')))
               }
               if (options.processBadge2 && rc.props.badge2) {
-                promises.push(processBadge(rc.props.badge2, adltClient, objectMember(rcResult.value, 'badge2')))
+                promises.push(processBadge(rc.props.badge2, getAttr, adltClient, objectMember(rcResult.value, 'badge2')))
               }
               if (options.processsEvents && rc.props.filter) {
-                promises.push(processFilter(rc.props.filter, adltClient, objectMember(rcResult.value, 'events')))
+                promises.push(processFilter(rc.props.filter, getAttr, adltClient, objectMember(rcResult.value, 'events')))
               }
             }
             if (rc.type === 'nested' && Array.isArray(rc.data)) {
@@ -700,7 +834,7 @@ function iterateFbEffects(
                 },
                 children: [],
               }
-              promises.push(...iterateFbEffects(rc.data, nestedResult, adltClient, options))
+              promises.push(...iterateFbEffects({attributes: fba.attributes, title: rc.title || '<nested fishbone>', fishbone: rc.data}, nestedResult, adltClient, options))
               if (nestedResult.children.length) {
                 categoryResult.children.push(nestedResult)
               }
@@ -738,7 +872,7 @@ const processFbaFile = async (
       try {
         const fba = getFBDataFromText(fbaFileContent)
         fbaResult.data.fbaTitle = fba.title
-        const promises = iterateFbEffects(fba.fishbone, fbaResult, adltClient, options)
+        const promises = iterateFbEffects(fba, fbaResult, adltClient, options)
         resolve(promises)
       } catch (e) {
         fbaResult.data.errors.push(`Processing fba got error: ${e}`)
