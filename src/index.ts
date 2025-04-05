@@ -28,7 +28,7 @@ try {
     .option('--no_badge1', "don't process badge 1 (upper)")
     .option('--no_badge2', "don't process badge 2 (lower)")
     // .option('-j, --junit <output>', 'junit output filename ')
-    .argument('<files...>', 'FBA and DLT files to be processed')
+    .argument('<files...>', 'FBA and DLT files to be processed. Glob patterns are supported (with / even on windows). Use "<glob pattern>" to prevent shell globbing.')
     .action(cmdExec)
 
   program

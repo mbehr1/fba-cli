@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { version, containsRegexChars, retryOperation } from './util'
+import { version, containsRegexChars, retryOperation, globAdltAlike } from './util'
 
 describe('getVersion', () => {
   it('should return a version', () => {
@@ -58,6 +58,47 @@ describe('retryOperation', () => {
       expect('should have thrown').toBe('but did not')
     } catch (e) {
       expect(e).toBe('fail @0')
+    }
+  })
+})
+
+describe('globAdltAlike',()=>{
+  it('should return the filename itself if it exists', () => {
+    const filename = __filename
+    const result = globAdltAlike(filename)
+    expect(result).toEqual([filename])
+  })
+
+  it('should return the filename itself if it exist and contains adlt zip patterns', () => {
+    {
+      const filename = __filename + '!/foo/bar!/abc/de'
+      const result = globAdltAlike(filename)
+      expect(result).toEqual([filename])
+    }
+    {
+      const filename = __filename + '/foo/bar'
+      const result = globAdltAlike(filename)
+      expect(result).toEqual([filename])
+    }
+
+  })
+
+  it('should support glob patterns', () => {
+    {
+      const filename = __dirname + '/**/*'
+      const result = globAdltAlike(filename)
+      // check whether result includes __filename
+      // and has more than 1 entry
+      expect(result).to.include(__filename)
+      expect(result).to.have.length.above(1)
+    }
+    {
+      const filename = __dirname + '/../**/*'
+      const result = globAdltAlike(filename)
+      // check whether result includes __filename
+      // and has more than 1 entry
+      expect(result).to.include(__filename)
+      expect(result).to.have.length.above(1)
     }
   })
 })
