@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
 
+# [1.9.0](https://github.com/mbehr1/fba-cli/compare/v1.8.1...v1.9.0) (2025-04-05)
+
+
+### Features
+
+* **exec:** add glob support for filenames ([cc6d73f](https://github.com/mbehr1/fba-cli/commit/cc6d73fe01c423de4f02a79000f7a67bb2068752))
+
 ## [1.8.1](https://github.com/mbehr1/fba-cli/compare/v1.8.0...v1.8.1) (2025-04-05)
 
 
