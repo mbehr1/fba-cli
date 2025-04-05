@@ -48,6 +48,7 @@ import { sleep } from './util.js'
 import { gfmTableToMarkdown } from 'mdast-util-gfm-table'
 import { satisfies } from 'semver'
 import { DltFilter, FBSequence, FbEvent, FbSequenceResult, SeqChecker } from 'dlt-logs-utils/sequence'
+import { AttributesValue, getAttributeFromFba, substAttributes, substFilterAttributes } from 'dlt-logs-utils/restQuery'
 
 const MIN_ADLT_VERSION_SEMVER_RANGE = '>=0.61.0' // 0.61.0 needed for one_pass_streams support
 
@@ -382,7 +383,7 @@ const processFilter = async (filter: FBFilter, getAttr: (attr:string)=>Attribute
     if (filter.source && typeof filter.source === 'string' && filter.source.startsWith('ext:mbehr1.dlt-logs/')) {
       const rq = rqUriDecode(filter.source)
       if (rq.path.endsWith('/filters?')) {
-        substAttributes(rq, getAttr)
+        substAttributes(rq, getAttr, JSON5)
         // console.log(`got filter: ${JSON5.stringify(rq.commands.map((command)=>command.cmd))}`)
         for (const cmd of rq.commands) {
           switch (cmd.cmd) {
@@ -467,54 +468,6 @@ const processFilter = async (filter: FBFilter, getAttr: (attr:string)=>Attribute
   }
 }
 
-// TODO refactor to dlt-logs-utils
-
-/**
- * Replace any ${attributes.<attribute>} with the value of the attribute inplace
- * @param rq 
- * @param getAttr 
- */
-const substAttributes = (rq: any, getAttr: (attr:string)=>AttributesValue) => {
-  for (const cmd of rq.commands) {
-    switch (cmd.cmd) {
-      case 'report':
-      case 'query':
-        {
-          const param = JSON5.parse(cmd.param)
-          if (Array.isArray(param)) {
-            const doChange = substFilterAttributes(param, getAttr)
-            if (doChange) {
-              cmd.param = JSON.stringify(param)
-            }
-          }
-        }
-        break
-    }
-  }
-}
-
-const substFilterAttributes = (filters:any[], getAttr: (attr:string)=>AttributesValue) => {
-  let didChange = false
-  for (const filter of filters) {
-    Object.keys(filter).forEach((key) => {
-      if (typeof filter[key] === 'string' && filter[key].startsWith('${attributes.')) {
-        // console.warn(`performRestQuery: got key: '${key}' with attribute '${filter[key]}'`)
-        const attribute = filter[key].slice(13, -1) // remove ${attributes. and }
-        const attrVal = getAttr(attribute)
-        // console.log(error(`substFilterAttributes: got attribute '${attribute}' with value: ${JSON.stringify(attrVal)}\n`))
-        if (attrVal !== undefined) {
-          filter[key] = attrVal
-        } else {
-          // remove key:
-          delete filter[key]
-        }
-        didChange = true
-      }
-    })
-  }
-  return didChange
-}
-
 const processBadge = async (
   badge: FBBadge,
   getAttr:(attr: string)=> AttributesValue,
@@ -527,7 +480,7 @@ const processBadge = async (
       // console.log(`rqCmd.path=${rqCmd.path}`)
       if (rq.path.endsWith('/filters?')) {
         //console.log(`rq.commands=${JSON.stringify(rq.commands)}`)
-        substAttributes(rq, getAttr)
+        substAttributes(rq, getAttr, JSON5)
         for (const cmd of rq.commands) {
           rcResult.value = undefined
           if (cmd.cmd === 'query') {
@@ -678,11 +631,7 @@ const processSequences = async (
   }
 }
 
-// TODO refactor to dlt-logs-utils
-type AttributesValue = string|number|(string|number)[] | undefined
-
 const attrCacheCache = new Map<FBAttribute[], Map<string, AttributesValue>>()
-// const attrCache = new Map<string, string | number | (string | number)[] | undefined>()
 const getAttribute = (fbaAttrs:FBAttribute[], attribute: string): AttributesValue => {
       // check if we already have the attribute in the cache
       let attrCache = attrCacheCache.get(fbaAttrs)
@@ -694,66 +643,9 @@ const getAttribute = (fbaAttrs:FBAttribute[], attribute: string): AttributesValu
       if (attrCache.has(attribute)) {
         return attrCache.get(attribute)
       }
-
-      if (Array.isArray(fbaAttrs)) {
-        // iterate over all attributes and check if the attribute is in there
-        // it can be attributename.member e.g. lifecycles.id or attributename like ecu
-        // the attribute value can be a single string/value or an array with string/values
-        // for ecu usually value is just a single member (string)
-        // for lifecycles value is an array of objects with id (number), label,...
-        const [attrName, attrMember] = attribute.split('.')
-
-        for (const attr of fbaAttrs) {
-          if (typeof attr === 'object' && attrName in attr) {
-            // check if the attribute is in the object
-            const attrNameObj = attr[attrName]
-            const attrVal = attrNameObj && typeof attrNameObj === 'object' && attrNameObj?.value
-            if (attrVal === undefined) {
-              attrCache.set(attribute, attrVal)
-              return undefined
-            }
-            if (attrMember) {
-              // check if the attribute is in the object/array
-              if (Array.isArray(attrVal)) {
-                // check if the attribute is in the array
-                if (attrVal.length === 0) {
-                  attrCache.set(attribute, attrVal as (string | number)[])
-                  return attrVal
-                }
-
-                const attrMemberVals = attrVal.map((e: any) => e[attrMember])
-                const toRet =
-                  attrMemberVals.length > 0
-                    ? typeof attrMemberVals[0] === 'string' || typeof attrMemberVals[0] === 'number'
-                      ? (attrMemberVals as (string | number)[])
-                      : undefined
-                    : []
-                attrCache.set(attribute, toRet)
-                return toRet
-              } else {
-                const toRet = typeof attrVal[0] === 'string' || typeof attrVal[0] === 'number' ? (attrVal as (string | number)[]) : []
-                attrCache.set(attribute, toRet)
-                return toRet
-              }
-            } else {
-              let toRet
-              if (Array.isArray(attrVal)) {
-                toRet =
-                  attrVal.length > 0
-                    ? typeof attrVal[0] === 'string' || typeof attrVal[0] === 'number'
-                      ? (attrVal as (string | number)[])
-                      : undefined
-                    : []
-              } else {
-                toRet = typeof attrVal === 'string' || typeof attrVal === 'number' ? attrVal : undefined
-              }
-              attrCache.set(attribute, toRet)
-              return toRet
-            }
-          }
-        }
-      }
-      return undefined
+      const toRet = getAttributeFromFba(fbaAttrs, attribute)
+      attrCache.set(attribute, toRet)
+      return toRet
     }
 
 function iterateFbEffects(
