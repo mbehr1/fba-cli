@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
 
+## [1.8.1](https://github.com/mbehr1/fba-cli/compare/v1.8.0...v1.8.1) (2025-04-05)
+
+
+### Bug Fixes
+
+* **sequences:** support ecu,apid,ctid with regexs ([8a077f9](https://github.com/mbehr1/fba-cli/commit/8a077f93b146d91a0d3ab84375d2f59e3229258f))
+
 # [1.8.0](https://github.com/mbehr1/fba-cli/compare/v1.7.0...v1.8.0) (2025-04-04)
 
 
