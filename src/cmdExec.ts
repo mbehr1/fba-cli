@@ -44,7 +44,7 @@ import { assert as mdassert } from 'mdast-util-assert'
 import { toMarkdown } from 'mdast-util-to-markdown'
 import { ChildProcess } from 'child_process'
 import path from 'path'
-import { sleep } from './util.js'
+import { globAdltAlike, sleep } from './util.js'
 import { gfmTableToMarkdown } from 'mdast-util-gfm-table'
 import { satisfies } from 'semver'
 import { DltFilter, FBSequence, FbEvent, FbSequenceResult, SeqChecker } from 'dlt-logs-utils/sequence'
@@ -84,12 +84,14 @@ export const cmdExec = async (files: string[], options: any) => {
   const sortOrderByTime = 'sortOrderByTime' in options ? !!options.sortOrderByTime : true
 
   for (const file of files) {
-    // check whether file exists otherwise apply glob pattern first todo
-
-    if (file.endsWith('.fba')) {
-      fbaFiles.push(file)
-    } else {
-      nonFbaFiles.push(file)
+    // we support glob pattern (to ease windows usage)
+    const globedFileNames = globAdltAlike(file)
+    for (const gFile of globedFileNames) {
+      if (gFile.endsWith('.fba')) {
+        fbaFiles.push(gFile)
+      } else {
+        nonFbaFiles.push(gFile)
+      }
     }
   }
   // console.log('exec: fba files:', fbaFiles)

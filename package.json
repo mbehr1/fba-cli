@@ -114,6 +114,7 @@
     "commander": "^13.1.0",
     "dlt-logs-utils": "0.12.1",
     "filenamify": "^6.0.0",
+    "glob":"^11.0.1",
     "js-yaml": "^4.1.0",
     "json5": "2.2.3",
     "jsonpath": "^1.1.1",
