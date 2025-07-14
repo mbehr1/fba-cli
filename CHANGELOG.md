@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
 
+## [1.10.3](https://github.com/mbehr1/fba-cli/compare/v1.10.2...v1.10.3) (2025-07-14)
+
+
+### Bug Fixes
+
+* **exec:** format msgs processed as table ([cef3704](https://github.com/mbehr1/fba-cli/commit/cef370477269fc34603a2143b0aecb6d0b5940d8))
+* **exec:** output files used as table ([d799a47](https://github.com/mbehr1/fba-cli/commit/d799a47601d9502b8648cb4806891f0b647919dc))
+
 ## [1.10.2](https://github.com/mbehr1/fba-cli/compare/v1.10.1...v1.10.2) (2025-04-13)
 
 
