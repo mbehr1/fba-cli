@@ -203,16 +203,16 @@ export function fbReportToMdast(report: FbaExecReport): Root {
       if (!hideEvents(events)) {
         const eventChildsAsTableRows: TableRow[] = events
           ? events.map((event, idx) => {
-              return asTableRow([
-                (idx + 1).toString(),
-                event.lifecycle ? event.lifecycle.persistentId.toString() : '', // todo the persistent id is not the one from adlt convert if adlt is started locally and port is used.
-                event.timeInMs ? new Date(event.timeInMs).toLocaleString('de-DE') : '<notime>',
-                event.evType,
-                event.title,
-                event.summary || '',
-                event.msgText || '',
-              ])
-            })
+            return asTableRow([
+              (idx + 1).toString(),
+              event.lifecycle ? event.lifecycle.persistentId.toString() : '', // todo the persistent id is not the one from adlt convert if adlt is started locally and port is used.
+              event.timeInMs ? new Date(event.timeInMs).toLocaleString('de-DE') : '<notime>',
+              event.evType,
+              event.title,
+              event.summary || '',
+              event.msgText || '',
+            ])
+          })
           : []
         reportAsMd.children.push({
           type: 'paragraph',
@@ -230,12 +230,11 @@ export function fbReportToMdast(report: FbaExecReport): Root {
             asTableRow([
               '#',
               'LC',
-              `Time (${
-                Intl.DateTimeFormat('de-DE', { timeZoneName: 'longOffset' })
-                  .formatToParts(
-                    events && events.length > 0 && events[0].timeInMs !== undefined ? new Date(events[0].timeInMs) : Date.now(),
-                  )
-                  .find((part) => part.type === 'timeZoneName')?.value || 'UTC'
+              `Time (${Intl.DateTimeFormat('de-DE', { timeZoneName: 'longOffset' })
+                .formatToParts(
+                  events && events.length > 0 && events[0].timeInMs !== undefined ? new Date(events[0].timeInMs) : Date.now(),
+                )
+                .find((part) => part.type === 'timeZoneName')?.value || 'UTC'
               })`,
               'Event type',
               'Title',
@@ -330,9 +329,28 @@ export function fbReportToMdast(report: FbaExecReport): Root {
           { type: 'text', value: `date: ${rc.data.date}, ` },
           { type: 'text', value: `adlt v${rc.data.adltVersion}, fba-cli v${version()} ` },
           { type: 'break' },
-          { type: 'text', value: `files: ` },
-          { type: 'inlineCode',value: `${rc.data.files.join(', ')}` },
-          { type: 'text', value: ` ` },
+          { type: 'html', value: `<details${rc.data.files.length <= 10 ? ' open' : ''}>` },
+          { type: 'html', value: `<summary>` },
+          { type: 'text', value: `Log files used: ${rc.data.files.length}` },
+          { type: 'html', value: `</summary>` }
+        ]
+      })
+      reportAsMd.children.push({
+        type: 'table',
+        align: ['right', 'left'],
+        children: [
+          asTableRow(['#', 'log file name']),
+          ...rc.data.files.map((file, idx) => asTableRow([
+            numberFormat.format(idx + 1),
+            { type: 'html', value: `\`\`\`${file}\`\`\`` }])),
+        ],
+      })
+      reportAsMd.children.push(
+        { type: 'html', value: `</details>` },
+      )
+      reportAsMd.children.push({
+        type: 'paragraph',
+        children: [
           { type: 'html', value: `<details>` },
           { type: 'html', value: `<summary>` },
           { type: 'text', value: `pluginCfgs used:` },
@@ -361,20 +379,45 @@ export function fbReportToMdast(report: FbaExecReport): Root {
         }, new Map<string, number>()),
       ).sort((a, b) => b[1] - a[1])
       const nrMsgsProcessed = ecuNrMsgs.reduce((acc, ecuNrMsgs) => acc + ecuNrMsgs[1], 0)
-      reportAsMd.children.push({
-        type: 'paragraph',
-        children: [
-          {
-            type: 'text',
-            value:
-              ecuNrMsgs.length === 1
-                ? `Processed ${numberFormat.format(nrMsgsProcessed)} messages from ECU: '${ecuNrMsgs[0][0]}'.`
-                : `Processed ${numberFormat.format(nrMsgsProcessed)} messages from ${ecuNrMsgs.length} ECUs: ${ecuNrMsgs
+      if (ecuNrMsgs.length >= 2) {
+        reportAsMd.children.push({
+          type: 'paragraph',
+          children: [
+            { type: 'html', value: `<details${ecuNrMsgs.length <= 20 ? ' open' : ''}>` },
+            { type: 'html', value: `<summary>` },
+            { type: 'text', value: `Processed ${numberFormat.format(nrMsgsProcessed)} messages from ${ecuNrMsgs.length} ECUs:` },
+            { type: 'html', value: `</summary>` }
+          ]
+        })
+        reportAsMd.children.push({
+          type: 'table',
+          align: ['left', 'right'],
+          children: [
+            asTableRow(['ECU', '# msgs']),
+            ...ecuNrMsgs.map(([ecu, nrMsgs]) => asTableRow([
+              { type: 'html', value: `\`\`\`${ecu}\`\`\`` },
+              numberFormat.format(nrMsgs)
+            ]))],
+        })
+        reportAsMd.children.push(
+          { type: 'html', value: `</details>` },
+        )
+      } else {
+        reportAsMd.children.push({
+          type: 'paragraph',
+          children: [
+            {
+              type: 'text',
+              value:
+                ecuNrMsgs.length === 1
+                  ? `Processed ${numberFormat.format(nrMsgsProcessed)} messages from ECU: '${ecuNrMsgs[0][0]}'.`
+                  : `Processed ${numberFormat.format(nrMsgsProcessed)} messages from ${ecuNrMsgs.length} ECUs:\n\n ${ecuNrMsgs
                     .map(([ecu, nrMsgs]) => `'${ecu}' (${numberFormat.format(nrMsgs)})`)
                     .join(', ')}.`,
-          },
-        ],
-      })
+            },
+          ],
+        })
+      }
       // add lifecycle infos:
       reportAsMd.children.push({
         type: 'paragraph',
@@ -407,10 +450,9 @@ export function fbReportToMdast(report: FbaExecReport): Root {
             asTableRow([
               '#',
               'ECU',
-              `Start time (${
-                Intl.DateTimeFormat('de-DE', { timeZoneName: 'longOffset' })
-                  .formatToParts(lifecycles[0].lifecycleStart)
-                  .find((part) => part.type === 'timeZoneName')?.value || 'UTC'
+              `Start time (${Intl.DateTimeFormat('de-DE', { timeZoneName: 'longOffset' })
+                .formatToParts(lifecycles[0].lifecycleStart)
+                .find((part) => part.type === 'timeZoneName')?.value || 'UTC'
               })`,
               'End time',
               'Resume?',
