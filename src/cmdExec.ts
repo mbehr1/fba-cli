@@ -597,7 +597,7 @@ const processSequences = async (
     // todo keep a map with sequence name to result value
 
     for (const jsonSeq of sequences) {
-      // console.log(`processSequences: sequence('${jsonSeq.name}')=${JSON5.stringify(jsonSeq)}`)
+     // console.log(`processSequences: sequence('${jsonSeq.name}')=${JSON5.stringify(jsonSeq)}`)
       const seqResult: FbSequenceResult = {
         sequence: jsonSeq,
         occurrences: [],
@@ -619,6 +619,7 @@ const processSequences = async (
         try {
           seqResult.logs.push(`processed sequence '${seqChecker.name}' got ${msgs.length} msgs`)
           seqChecker.processMsgs(msgs)
+          //console.log(`seqResult=${JSON.stringify(seqResult,null, 2)}`)
         } catch (e) {
           console.warn(`processSequences.msgs got error:${e}`)
           seqResult.logs.push(`processSequences.msgs got error:${e}`)
