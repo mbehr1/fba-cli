@@ -331,7 +331,7 @@ export function fbReportToMdast(report: FbaExecReport): Root {
           { type: 'break' },
           { type: 'html', value: `<details${rc.data.files.length <= 10 ? ' open' : ''}>` },
           { type: 'html', value: `<summary>` },
-          { type: 'text', value: `log files used: ${rc.data.files.length}` },
+          { type: 'text', value: `Log files used: ${rc.data.files.length}` },
           { type: 'html', value: `</summary>` }
         ]
       })
@@ -379,20 +379,45 @@ export function fbReportToMdast(report: FbaExecReport): Root {
         }, new Map<string, number>()),
       ).sort((a, b) => b[1] - a[1])
       const nrMsgsProcessed = ecuNrMsgs.reduce((acc, ecuNrMsgs) => acc + ecuNrMsgs[1], 0)
-      reportAsMd.children.push({
-        type: 'paragraph',
-        children: [
-          {
-            type: 'text',
-            value:
-              ecuNrMsgs.length === 1
-                ? `Processed ${numberFormat.format(nrMsgsProcessed)} messages from ECU: '${ecuNrMsgs[0][0]}'.`
-                : `Processed ${numberFormat.format(nrMsgsProcessed)} messages from ${ecuNrMsgs.length} ECUs: ${ecuNrMsgs
-                  .map(([ecu, nrMsgs]) => `'${ecu}' (${numberFormat.format(nrMsgs)})`)
-                  .join(', ')}.`,
-          },
-        ],
-      })
+      if (ecuNrMsgs.length >= 2) {
+        reportAsMd.children.push({
+          type: 'paragraph',
+          children: [
+            { type: 'html', value: `<details${ecuNrMsgs.length <= 20 ? ' open' : ''}>` },
+            { type: 'html', value: `<summary>` },
+            { type: 'text', value: `Processed ${numberFormat.format(nrMsgsProcessed)} messages from ${ecuNrMsgs.length} ECUs:` },
+            { type: 'html', value: `</summary>` }
+          ]
+        })
+        reportAsMd.children.push({
+          type: 'table',
+          align: ['left', 'right'],
+          children: [
+            asTableRow(['ECU', '# msgs']),
+            ...ecuNrMsgs.map(([ecu, nrMsgs]) => asTableRow([
+              { type: 'html', value: `\`\`\`${ecu}\`\`\`` },
+              numberFormat.format(nrMsgs)
+            ]))],
+        })
+        reportAsMd.children.push(
+          { type: 'html', value: `</details>` },
+        )
+      } else {
+        reportAsMd.children.push({
+          type: 'paragraph',
+          children: [
+            {
+              type: 'text',
+              value:
+                ecuNrMsgs.length === 1
+                  ? `Processed ${numberFormat.format(nrMsgsProcessed)} messages from ECU: '${ecuNrMsgs[0][0]}'.`
+                  : `Processed ${numberFormat.format(nrMsgsProcessed)} messages from ${ecuNrMsgs.length} ECUs:\n\n ${ecuNrMsgs
+                    .map(([ecu, nrMsgs]) => `'${ecu}' (${numberFormat.format(nrMsgs)})`)
+                    .join(', ')}.`,
+            },
+          ],
+        })
+      }
       // add lifecycle infos:
       reportAsMd.children.push({
         type: 'paragraph',
