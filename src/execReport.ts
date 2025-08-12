@@ -177,7 +177,7 @@ export function fbReportToMdast(report: FbaExecReport): Root {
       }
       const badge2Value = rc.value.badge2
       if (!hideBadge2Value(badge2Value)) {
-        if (typeof badgeValue === 'string' || typeof badgeValue === 'number') {
+        if (typeof badge2Value === 'string' || typeof badge2Value === 'number') {
           reportAsMd.children.push({
             type: 'paragraph',
             children: [
@@ -186,8 +186,8 @@ export function fbReportToMdast(report: FbaExecReport): Root {
             ],
           })
         } else {
-          if (Array.isArray(badgeValue)) {
-            const seqResults = badgeValue as FbSequenceResult[]
+          if (Array.isArray(badge2Value)) {
+            const seqResults = badge2Value as FbSequenceResult[]
             for (const seqResult of seqResults) {
               try {
                 const seqAsMd = seqResultToMdAst(seqResult)
