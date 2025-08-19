@@ -22,6 +22,7 @@ try {
     .command('exec')
     .description('execute FBA files with DLT-logs')
     .option('-o, --output <filename>', 'output file name (default is output to console)')
+    .option('-s, --summary', 'output a summary report in json format to console (stdout). Needs -o to not interfere with full report output')
     .option('-c, --config <config>', 'json config file with object key dlt-logs.plugins')
     .option('-p, --port <port>', 'adlt remote host:port e.g. 127.0.0.1:7777. Otherwise an adlt if in path will be started locally.')
     .option('--no_events', "don't process events")

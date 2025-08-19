@@ -1,7 +1,7 @@
 /**
  * todos:
  * [x] load all fba filters upfront and then stream adlt only so that no memory is kept
- * [ ] sequence support
+ * [x] sequence support
  * [ ] seq: add lifecycle check support
  * [x] seq: refactor so that a single message can fail the current one and start a new one
  * [x] (done by isFinished = last mandatory step) seq: add order support (e.g. 2,3,1 should fail (and create a new one with 1))
@@ -33,6 +33,7 @@ import {
   FbaExecReport,
   FbaResult,
   fbReportToMdast,
+  fbReportToJsonSummary,
   hideBadge2Value,
   hideBadgeValue,
   hideEvents,
@@ -58,7 +59,11 @@ const warning = chalk.bold.yellow
 // const numberFormat = new Intl.NumberFormat('de-DE', { style: 'decimal', maximumFractionDigits: 0 })
 
 export const cmdExec = async (files: string[], options: any) => {
-  // console.log('cmdExec', files, options)
+  
+  if (options.summary && !options.output){
+    console.warn(error('Summary report requires output file via -o / --output to be specified!\n'))
+    return
+  }
 
   const fbaFiles: string[] = []
   const nonFbaFiles: string[] = []
@@ -337,6 +342,14 @@ export const cmdExec = async (files: string[], options: any) => {
                   multibar.log(`Failed to write report to '${options.output}'! Got error:${e}\n`)
                   console.warn(error(`Failed to write report to '${options.output}'! Got error:${e}\n`))
                 }
+                multibar.update()
+              }
+              if (options.summary){
+                multibar.log(`Generating summary...\n`)
+                const summary={
+                  reportSummary: fbReportToJsonSummary(report)
+                }
+                console.log(`${JSON.stringify(summary, null, 2)}\n`)
                 multibar.update()
               }
             } catch (e) {
