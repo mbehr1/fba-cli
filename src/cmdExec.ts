@@ -72,11 +72,11 @@ export const cmdExec = async (files: string[], options: any) => {
       if (plugins && Array.isArray(plugins)) {
         pluginCfgs = JSON.stringify(config['dlt-logs.plugins'])
       } else {
-        console.log(error(`No 'dlt-logs.plugins' config array in config file '${options.config}'!`))
+        console.warn(error(`No 'dlt-logs.plugins' config array in config file '${options.config}'!\n`))
         return
       }
     } catch (e) {
-      console.log(error(`failed to load config file '${options.config}'! Got error:${e}`))
+      console.warn(error(`failed to load config file '${options.config}'! Got error:${e}\n`))
       return
     }
   }
@@ -98,9 +98,9 @@ export const cmdExec = async (files: string[], options: any) => {
   // console.log('exec: non fba files:', nonFbaFiles)
 
   if (fbaFiles.length === 0) {
-    console.log(warning('no fba files found!'))
+    console.warn(warning('no fba files found!\n'))
     if (nonFbaFiles.length > 0) {
-      console.log(warning(`Dont' know what to do with the other ${nonFbaFiles.length} files!`))
+      console.warn(warning(`Dont' know what to do with the other ${nonFbaFiles.length} files!\n`))
     }
   } else {
     let totalNrOfMsgs: number | undefined = undefined
@@ -170,16 +170,16 @@ export const cmdExec = async (files: string[], options: any) => {
           adltProcess = process
         },
         (e) => {
-          console.log(error(`Failed to start adlt! Got error:${e}`))
+          console.warn(error(`Failed to start adlt! Got error:${e}\n`))
         },
       )
     }
 
     if (!adltWssPort) {
       multibar.stop()
-      console.log(
+      console.warn(
         error(
-          `No adlt remote host:port to use! Please ensure that adlt is running and provide the port via the -p option or have adlt in path and don't provide the -p option!`,
+          `No adlt remote host:port to use! Please ensure that adlt is running and provide the port via the -p option or have adlt in path and don't provide the -p option!\n`,
         ),
       )
       return
@@ -195,7 +195,7 @@ export const cmdExec = async (files: string[], options: any) => {
         if (!satisfies(adltVersion, MIN_ADLT_VERSION_SEMVER_RANGE)) {
           multibar.log(`adlt version not fitting. Have ${adltVersion}! Needs ${MIN_ADLT_VERSION_SEMVER_RANGE}\n`)
           multibar.update()
-          console.log(error(`adlt version not fitting. Have ${adltVersion}! Needs ${MIN_ADLT_VERSION_SEMVER_RANGE}`))
+          console.warn(error(`adlt version not fitting. Have ${adltVersion}! Needs ${MIN_ADLT_VERSION_SEMVER_RANGE}\n`))
           throw new Error(`adlt version not fitting. Have ${adltVersion}! Needs ${MIN_ADLT_VERSION_SEMVER_RANGE}`)
         }
         //multibar.log(`Connected to adlt...\n`)
@@ -220,7 +220,7 @@ export const cmdExec = async (files: string[], options: any) => {
             if (!response.startsWith('ok:')) {
               multibar.log(`Failed to open DLT files! Got response: '${response}'\n`)
               multibar.update()
-              console.log(error(`Failed to open DLT files! Got response:${response}`))
+              console.warn(error(`Failed to open DLT files! Got response:${response}\n`))
               return
             }
             // multibar.log(`Opened files...\n`)
@@ -263,7 +263,7 @@ export const cmdExec = async (files: string[], options: any) => {
                 if (!response.startsWith('ok:')) {
                   multibar.log(`Failed to resume adlt! Got response: '${response}'\n`)
                   multibar.update()
-                  console.log(error(`Failed to resume adlt! Got response:${response}`))
+                  console.warn(error(`Failed to resume adlt! Got response:${response}\n`))
                   return
                 }
                 multibar.log(`Processing DLT files with ${pending_promises.length} queries...\n`)
@@ -286,11 +286,11 @@ export const cmdExec = async (files: string[], options: any) => {
             }
           })
           .catch((e) => {
-            console.log(error(`Failed to open DLT files! Got error:${e}`))
+            console.warn(error(`Failed to open DLT files! Got error:${e}\n`))
           })
       })
       .catch((e) => {
-        console.log(error(`Failed to connect to adlt! Got error:${e}`))
+        console.warn(error(`Failed to connect to adlt! Got error:${e}\n`))
       })
       .finally(() => {
         adltClient.close()
@@ -298,7 +298,7 @@ export const cmdExec = async (files: string[], options: any) => {
           try {
             adltProcess.kill()
           } catch (e) {
-            console.log(error(`Failed to kill adlt process! Got error:${e}`))
+            console.warn(error(`Failed to kill adlt process! Got error:${e}\n`))
           }
         }
         barAdlt.increment(1, { file: `adlt closed` })
@@ -335,17 +335,17 @@ export const cmdExec = async (files: string[], options: any) => {
                   multibar.log(`Report written to '${options.output}'\n`)
                 }catch(e){
                   multibar.log(`Failed to write report to '${options.output}'! Got error:${e}\n`)
-                  console.log(error(`Failed to write report to '${options.output}'! Got error:${e}`))
+                  console.warn(error(`Failed to write report to '${options.output}'! Got error:${e}\n`))
                 }
                 multibar.update()
               }
             } catch (e) {
-              console.log(inspect(reportAsMd))
+              console.warn(inspect(reportAsMd))
               console.warn(`reportAsMd got error:${e}`)
             }
           }
         } else {
-          console.log(warning('failed to generate a report!'))
+          console.warn(warning('failed to generate a report!\n'))
         }
         multibar.stop()
       })
@@ -448,7 +448,7 @@ const processFilter = async (filter: FBFilter, getAttr: (attr:string)=>Attribute
                           rcResult.value = events
                         }
                       } catch (e) {
-                        console.log(warning(`processFilter.msgs got error:${e}`))
+                        console.warn(warning(`processFilter.msgs got error:${e}\n`))
                         // todo: where to return errors? rcResult.value = [`processFilter.msgs got error:${e}`]
                       }
                     })
@@ -457,15 +457,15 @@ const processFilter = async (filter: FBFilter, getAttr: (attr:string)=>Attribute
               }
               break
             default:
-              console.log(`got filter cmd: ${JSON5.stringify(cmd)}`)
+              // console.warn(`got filter cmd: ${JSON5.stringify(cmd)}\n`)
           }
         }
       }
     } else {
-      console.log(warning(`processFilter ignored:${JSON5.stringify(filter)}`))
+      console.warn(warning(`processFilter ignored:${JSON5.stringify(filter)}\n`))
     }
   } catch (e) {
-    console.log(warning(`processFilter got error:${e}`))
+    console.warn(warning(`processFilter got error:${e}\n`))
     // todo: where to put the errors? rcResult.value = [`processFilter got error:${e}`]
   }
 }
@@ -566,7 +566,7 @@ const processBadge = async (
               rcResult.value = '<none>'
             }
           } else {
-            console.log(`rq.cmd=${cmd} ignored!`)
+            console.warn(`rq.cmd=${cmd} ignored!\n`)
             rcResult.value = '<none>'
           }
         }

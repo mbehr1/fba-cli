@@ -471,7 +471,7 @@ export function fbReportToMdast(report: FbaExecReport): Root {
 
       return CONTINUE // traverse children as well SKIP // dont traverse children
     }
-    console.log(`skipping children of node.type=${node.type}`)
+    console.warn(`skipping children of node.type=${node.type}`)
     return SKIP // if we reach here we dont know the node!
   })
   return reportAsMd
