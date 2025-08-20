@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
 
+# [1.11.0](https://github.com/mbehr1/fba-cli/compare/v1.10.4...v1.11.0) (2025-08-20)
+
+
+### Features
+
+* **exec:** add json summary report ([7ab06f7](https://github.com/mbehr1/fba-cli/commit/7ab06f7bb6a115d3000565075bccdfa938a9fadc))
+
 ## [1.10.4](https://github.com/mbehr1/fba-cli/compare/v1.10.3...v1.10.4) (2025-08-12)
 
 
