@@ -128,6 +128,53 @@ const resAsEmoji = (res: string | undefined): string => {
 
 const numberFormat = new Intl.NumberFormat('de-DE', { style: 'decimal', maximumFractionDigits: 0 })
 
+export function fbReportToJsonSummary(report: FbaExecReport): any {
+
+  const rcResults:any = []
+
+  const formatBadge = (value: string | number | FbSequenceResult[] | undefined): any => {
+    if (typeof value === 'string' || typeof value === 'number') {
+      return value
+    }else if (Array.isArray(value)) {
+      return value.map((seqResult) => {
+        return {
+          name: seqResult.sequence.name,
+          occurrences: seqResult.occurrences.map((occ) => {
+            return {
+              result: occ.result,
+              failures: occ.failures,
+              kpis: occ.kpis
+          }})
+        }
+      })
+    }
+  }
+
+  visit(report, (node: Node) => {
+    if (is(node, 'FbRootCauseResult')) {
+      const rc = node as FbRootCauseResult
+      rcResults.push({
+        name: rc.data.name,
+        //backgroundDescription: rc.data.backgroundDescription,
+        //instructions: rc.data.instructions,
+        badge: hideBadgeValue(rc.value.badge) ? undefined : formatBadge(rc.value.badge),
+        badge2: hideBadge2Value(rc.value.badge2) ? undefined : formatBadge(rc.value.badge2),
+        events: rc.value.events,
+      })
+    }
+  })
+
+  const summary = {
+    date: report.data.date,
+    adltVersion: report.data.adltVersion,
+    files: report.data.files,
+    pluginCfgs: JSON5.parse(report.data.pluginCfgs),
+    lifecycles: report.data.lifecycles,
+    rcResults: rcResults,
+  }
+  return summary
+}
+
 export function fbReportToMdast(report: FbaExecReport): Root {
   const reportAsMd: Root = {
     type: 'root',
@@ -471,7 +518,7 @@ export function fbReportToMdast(report: FbaExecReport): Root {
 
       return CONTINUE // traverse children as well SKIP // dont traverse children
     }
-    console.log(`skipping children of node.type=${node.type}`)
+    console.warn(`skipping children of node.type=${node.type}`)
     return SKIP // if we reach here we dont know the node!
   })
   return reportAsMd
