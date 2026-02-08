@@ -12,6 +12,7 @@ on:
       - beta
 
 permissions:
+  id-token: write  # Required for OIDC
   contents: read # for checkout
 
 jobs:
