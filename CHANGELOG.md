@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file. See
 [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
 
+## [1.11.3](https://github.com/mbehr1/fba-cli/compare/v1.11.2...v1.11.3) (2026-02-08)
+
+
+### Bug Fixes
+
+* **ci:** update semantic release npm ([850e849](https://github.com/mbehr1/fba-cli/commit/850e849e48cf4bcd49ad6dfd18e1abb43ca4c4e1))
+
 ## [1.11.2](https://github.com/mbehr1/fba-cli/compare/v1.11.1...v1.11.2) (2026-02-08)
 
 ## [1.11.1](https://github.com/mbehr1/fba-cli/compare/v1.11.0...v1.11.1) (2025-08-21)
